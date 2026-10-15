@@ -1,0 +1,55 @@
+{"input": "I need parking near Hitech City tomorrow at 10 AM for 2 hours", "expected": {"intent": "search", "location_text": "Hitech City", "date_text": "tomorrow", "start_time_text": "10 AM", "duration_minutes": 120}}
+{"input": "Find parking near Gachibowli right now", "expected": {"intent": "search", "location_text": "Gachibowli"}}
+{"input": "Book the first one", "expected": {"intent": "select_option", "option_index": 1}}
+{"input": "Select option 2 please", "expected": {"intent": "select_option", "option_index": 2}}
+{"input": "Third slot looks good", "expected": {"intent": "select_option", "option_index": 3}}
+{"input": "Yes proceed and confirm my booking", "expected": {"intent": "confirm"}}
+{"input": "Confirm booking and pay", "expected": {"intent": "confirm"}}
+{"input": "Cancel my booking", "expected": {"intent": "cancel_booking"}}
+{"input": "I want a refund on my reservation", "expected": {"intent": "cancel_booking"}}
+{"input": "Looking for EV charging parking near Inorbit Mall for 3 hours", "expected": {"intent": "search", "location_text": "Inorbit Mall", "facilities": ["ev_charging"], "duration_minutes": 180}}
+{"input": "Covered parking for bike near Secunderabad Station", "expected": {"intent": "search", "location_text": "Secunderabad Station", "vehicle_type": "MOTORCYCLE", "facilities": ["covered"]}}
+{"input": "Mujhe kal subah 10 baje Gachibowli me parking chahiye", "expected": {"intent": "search", "location_text": "Gachibowli", "date_text": "kal", "start_time_text": "10 baje"}}
+{"input": "Bhai pehla option book kar do", "expected": {"intent": "select_option", "option_index": 1}}
+{"input": "Booking cancel kardo meri", "expected": {"intent": "cancel_booking"}}
+{"input": "Haa confirm karo payment", "expected": {"intent": "confirm"}}
+{"input": "Parking spot near Jubilee Hills road no 36 for SUV", "expected": {"intent": "search", "location_text": "Jubilee Hills", "vehicle_type": "SUV"}}
+{"input": "Need cheap parking under 100 rupees near Madhapur", "expected": {"intent": "search", "location_text": "Madhapur", "max_budget_inr": 100}}
+{"input": "Parking with CCTV and valet at Banjara Hills", "expected": {"intent": "search", "location_text": "Banjara Hills", "facilities": ["cctv", "valet"]}}
+{"input": "Hi how are you?", "expected": {"intent": "other"}}
+{"input": "What is the parking rate here?", "expected": {"intent": "other"}}
+{"input": "Do you have slots for trucks near Miyapur?", "expected": {"intent": "search", "location_text": "Miyapur", "vehicle_type": "TRUCK"}}
+{"input": "Reserve slot number 4", "expected": {"intent": "select_option", "option_index": 4}}
+{"input": "Go ahead with slot 1", "expected": {"intent": "select_option", "option_index": 1}}
+{"input": "Proceed with payment now", "expected": {"intent": "confirm"}}
+{"input": "Kal shaam ko 6 baje parking milegi kya Banjara Hills mein?", "expected": {"intent": "search", "location_text": "Banjara Hills", "date_text": "Kal", "start_time_text": "6 baje"}}
+{"input": "Naaku Hitech City daggara parking kavali", "expected": {"intent": "search", "location_text": "Hitech City"}}
+{"input": "Modati option book cheyyi", "expected": {"intent": "select_option", "option_index": 1}}
+{"input": "Booking raddu cheyyandi", "expected": {"intent": "cancel_booking"}}
+{"input": "Parking near IKEA store for electric vehicle with EV charger", "expected": {"intent": "search", "location_text": "IKEA", "vehicle_type": "EV", "facilities": ["ev_charging"]}}
+{"input": "Need parking tomorrow from 2 PM to 5 PM near DLF Cybercity", "expected": {"intent": "search", "location_text": "DLF Cybercity", "date_text": "tomorrow", "start_time_text": "2 PM"}}
+{"input": "Any parking spots near Charminar today afternoon?", "expected": {"intent": "search", "location_text": "Charminar", "date_text": "today"}}
+{"input": "Pick the second choice", "expected": {"intent": "select_option", "option_index": 2}}
+{"input": "Let's do option 1", "expected": {"intent": "select_option", "option_index": 1}}
+{"input": "Stop my booking right now", "expected": {"intent": "cancel_booking"}}
+{"input": "Sure book it", "expected": {"intent": "confirm"}}
+{"input": "Disabled access parking near Hyderabad Airport", "expected": {"intent": "search", "location_text": "Hyderabad Airport", "facilities": ["disabled_access"]}}
+{"input": "Two wheeler parking near Ameerpet metro station for 45 minutes", "expected": {"intent": "search", "location_text": "Ameerpet", "vehicle_type": "MOTORCYCLE", "duration_minutes": 45}}
+{"input": "Park car near KPHB colony tomorrow morning", "expected": {"intent": "search", "location_text": "KPHB", "vehicle_type": "CAR", "date_text": "tomorrow"}}
+{"input": "Kal sham ko Kondapur me parking", "expected": {"intent": "search", "location_text": "Kondapur", "date_text": "Kal"}}
+{"input": "Can I cancel my current reservation?", "expected": {"intent": "cancel_booking"}}
+{"input": "Select slot 1", "expected": {"intent": "select_option", "option_index": 1}}
+{"input": "Payment ho gaya confirm kardo", "expected": {"intent": "confirm"}}
+{"input": "Parking space near Begumpet Airport", "expected": {"intent": "search", "location_text": "Begumpet Airport"}}
+{"input": "Underground covered parking spot near Mindspace IT Park", "expected": {"intent": "search", "location_text": "Mindspace", "facilities": ["covered"]}}
+{"input": "I want to park my scooter near RTC X Roads", "expected": {"intent": "search", "location_text": "RTC X Roads", "vehicle_type": "MOTORCYCLE"}}
+{"input": "Looking for parking in Somajiguda for 4 hours", "expected": {"intent": "search", "location_text": "Somajiguda", "duration_minutes": 240}}
+{"input": "Option 5 select karo", "expected": {"intent": "select_option", "option_index": 5}}
+{"input": "No I don't want this, cancel it", "expected": {"intent": "cancel_booking"}}
+{"input": "Yes, I agree to the price, please book", "expected": {"intent": "confirm"}}
+{"input": "Find parking near Financial District tomorrow at 9:00 AM", "expected": {"intent": "search", "location_text": "Financial District", "date_text": "tomorrow", "start_time_text": "9:00 AM"}}
+{"input": "Tell me a joke", "expected": {"intent": "other"}}
+{"input": "What services do you offer?", "expected": {"intent": "other"}}
+{"input": "Electric car charging slot at Forum Sujana Mall", "expected": {"intent": "search", "location_text": "Forum Sujana Mall", "vehicle_type": "EV", "facilities": ["ev_charging"]}}
+{"input": "Emergency cancellation of my parking slot", "expected": {"intent": "cancel_booking"}}
+{"input": "Confirm and generate receipt", "expected": {"intent": "confirm"}}

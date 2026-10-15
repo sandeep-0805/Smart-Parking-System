@@ -1,0 +1,181 @@
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { SearchForm } from '../components/search/SearchForm';
+import { LocationCard } from '../components/search/LocationCard';
+import { MapView } from '../components/search/MapView';
+import { BookingModal } from '../components/booking/BookingModal';
+import { searchParking } from '../../api/search';
+import { LoadingSpinner } from '../common/LoadingSpinner';
+import { FiList, FiMap, FiAlertCircle } from 'react-icons/fi';
+import toast from 'react-hot-toast';
+
+export const Search = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [results, setResults] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [viewMode, setViewMode] = useState('split'); // 'split', 'list', 'map'
+  const [selectedLocation, setSelectedLocation] = useState(null);
+  
+  // Booking Modal State
+  const [bookingModalOpen, setBookingModalOpen] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState(null);
+  const [modalLocation, setModalLocation] = useState(null);
+
+  const executeSearch = async (params) => {
+    setLoading(true);
+    try {
+      const data = await searchParking(params);
+      setResults(data);
+    } catch (err) {
+      toast.error('Search failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const params = {
+      place_name: searchParams.get('place_name') || 'Hitech City',
+      date: searchParams.get('date') || new Date().toISOString().split('T')[0],
+      start_time: searchParams.get('start_time') || '10:00',
+      duration_minutes: Number(searchParams.get('duration_minutes')) || 120,
+      vehicle_type: searchParams.get('vehicle_type') || 'CAR',
+      max_budget_inr: searchParams.get('max_budget_inr') ? Number(searchParams.get('max_budget_inr')) : undefined,
+    };
+    executeSearch(params);
+  }, [searchParams]);
+
+  const handleFormSearch = (params) => {
+    const nextParams = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') {
+        nextParams.set(k, v);
+      }
+    });
+    setSearchParams(nextParams);
+  };
+
+  const handleSelectSlot = (slot, location) => {
+    setSelectedSlot(slot);
+    setModalLocation(location);
+    setBookingModalOpen(true);
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      {/* Search Header Form */}
+      <SearchForm
+        initialValues={{
+          place_name: searchParams.get('place_name') || 'Hitech City',
+          date: searchParams.get('date') || '',
+          start_time: searchParams.get('start_time') || '',
+          duration_minutes: Number(searchParams.get('duration_minutes')) || 120,
+          vehicle_type: searchParams.get('vehicle_type') || 'CAR',
+          max_budget_inr: searchParams.get('max_budget_inr') || '',
+        }}
+        onSearch={handleFormSearch}
+        loading={loading}
+      />
+
+      {/* Basic Fallback Warning if AI Service is Down (FR-R4) */}
+      {results?.ranking_type === 'basic' && (
+        <div className="flex items-center text-xs text-amber-800 bg-amber-50 border border-amber-200 px-4 py-2.5 rounded-xl">
+          <FiAlertCircle className="mr-2 text-base shrink-0" />
+          <span>
+            AI recommender is offline or timed out; displaying basic distance-sorted results.
+          </span>
+        </div>
+      )}
+
+      {/* View Toggle Bar */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-extrabold text-slate-900">
+            {results?.total_locations || 0} Parking Locations Found
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Prices verified by server quote engine
+          </p>
+        </div>
+
+        <div className="flex bg-slate-200/80 p-1 rounded-xl text-xs font-semibold">
+          <button
+            onClick={() => setViewMode('split')}
+            className={`hidden lg:flex items-center px-3 py-1.5 rounded-lg transition-colors ${
+              viewMode === 'split' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600'
+            }`}
+          >
+            Split View
+          </button>
+          <button
+            onClick={() => setViewMode('list')}
+            className={`flex items-center px-3 py-1.5 rounded-lg transition-colors ${
+              viewMode === 'list' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600'
+            }`}
+          >
+            <FiList className="mr-1.5" /> List
+          </button>
+          <button
+            onClick={() => setViewMode('map')}
+            className={`flex items-center px-3 py-1.5 rounded-lg transition-colors ${
+              viewMode === 'map' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600'
+            }`}
+          >
+            <FiMap className="mr-1.5" /> Map
+          </button>
+        </div>
+      </div>
+
+      {/* Main Results View */}
+      {loading ? (
+        <div className="py-20">
+          <LoadingSpinner size="lg" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[550px]">
+          {/* List of cards */}
+          {(viewMode === 'split' || viewMode === 'list') && (
+            <div className={`space-y-4 ${viewMode === 'split' ? 'lg:col-span-6' : 'lg:col-span-12'}`}>
+              {results?.locations?.length > 0 ? (
+                results.locations.map((loc) => (
+                  <LocationCard
+                    key={loc.location_id}
+                    location={loc}
+                    onSelectSlot={handleSelectSlot}
+                    isSelected={selectedLocation?.location_id === loc.location_id}
+                  />
+                ))
+              ) : (
+                <div className="text-center py-16 bg-white rounded-2xl border border-slate-200 p-8">
+                  <h3 className="font-bold text-slate-800 text-base">No available slots found</h3>
+                  <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                    Try extending your search radius, selecting a different time window, or clearing facility filters.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Leaflet Map */}
+          {(viewMode === 'split' || viewMode === 'map') && (
+            <div className={`sticky top-24 ${viewMode === 'split' ? 'lg:col-span-6 h-[600px]' : 'lg:col-span-12 h-[650px]'}`}>
+              <MapView
+                locations={results?.locations || []}
+                onSelectLocation={(loc) => setSelectedLocation(loc)}
+                selectedLocationId={selectedLocation?.location_id}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Reservation & Payment Modal */}
+      <BookingModal
+        isOpen={bookingModalOpen}
+        onClose={() => setBookingModalOpen(false)}
+        slot={selectedSlot}
+        location={modalLocation}
+      />
+    </div>
+  );
+};
