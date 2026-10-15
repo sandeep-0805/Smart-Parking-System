@@ -30,3 +30,17 @@ class SearchResponse(BaseModel):
     ranking_type: str = "weighted"  # weighted or basic
     start_at: datetime
     end_at: datetime
+
+class LocationSuggestion(BaseModel):
+    id: str
+    name: str
+    address: str
+    lat: float
+    lng: float
+    category: str = "area"  # 'parking' | 'area' | 'landmark'
+
+class ReverseGeocodeResponse(BaseModel):
+    display_name: str
+    area: str
+    lat: float
+    lng: float

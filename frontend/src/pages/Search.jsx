@@ -4,7 +4,7 @@ import { SearchForm } from '../components/search/SearchForm';
 import { LocationCard } from '../components/search/LocationCard';
 import { MapView } from '../components/search/MapView';
 import { BookingModal } from '../components/booking/BookingModal';
-import { searchParking } from '../api/search';
+import { searchParking, reverseGeocodeCoords } from '../api/search';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { FiList, FiMap, FiAlertCircle } from 'react-icons/fi';
 import toast from 'react-hot-toast';
@@ -16,6 +16,14 @@ export const Search = () => {
   const [viewMode, setViewMode] = useState('split'); // 'split', 'list', 'map'
   const [selectedLocation, setSelectedLocation] = useState(null);
   
+  // Dynamic destination coordinates (selected via map, live GPS, or suggestions)
+  const initialLat = searchParams.get('lat') ? Number(searchParams.get('lat')) : null;
+  const initialLng = searchParams.get('lng') ? Number(searchParams.get('lng')) : null;
+  const [destinationCoords, setDestinationCoords] = useState(
+    initialLat && initialLng ? { lat: initialLat, lng: initialLng } : null
+  );
+  const [destinationName, setDestinationName] = useState(searchParams.get('place_name') || 'Hitech City');
+
   // Booking Modal State
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
@@ -34,8 +42,19 @@ export const Search = () => {
   };
 
   useEffect(() => {
+    const pLat = searchParams.get('lat') ? Number(searchParams.get('lat')) : null;
+    const pLng = searchParams.get('lng') ? Number(searchParams.get('lng')) : null;
+    const pName = searchParams.get('place_name') || 'Hitech City';
+
+    if (pLat && pLng) {
+      setDestinationCoords({ lat: pLat, lng: pLng });
+    }
+    setDestinationName(pName);
+
     const params = {
-      place_name: searchParams.get('place_name') || 'Hitech City',
+      place_name: pName,
+      lat: pLat || undefined,
+      lng: pLng || undefined,
       date: searchParams.get('date') || new Date().toISOString().split('T')[0],
       start_time: searchParams.get('start_time') || '10:00',
       duration_minutes: Number(searchParams.get('duration_minutes')) || 120,
@@ -55,6 +74,32 @@ export const Search = () => {
     setSearchParams(nextParams);
   };
 
+  // Map click handler to set destination directly by clicking any spot
+  const handleMapClick = async (latlng) => {
+    try {
+      const geo = await reverseGeocodeCoords(latlng.lat, latlng.lng);
+      const place = geo.display_name || `Location (${latlng.lat.toFixed(3)}, ${latlng.lng.toFixed(3)})`;
+      setDestinationCoords({ lat: latlng.lat, lng: latlng.lng });
+      setDestinationName(place);
+      toast.success(`📍 Destination set: ${place}`);
+
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.set('place_name', place);
+      nextParams.set('lat', latlng.lat.toFixed(6));
+      nextParams.set('lng', latlng.lng.toFixed(6));
+      setSearchParams(nextParams);
+    } catch (err) {
+      const fallback = `Pinned Location (${latlng.lat.toFixed(3)}, ${latlng.lng.toFixed(3)})`;
+      setDestinationCoords({ lat: latlng.lat, lng: latlng.lng });
+      setDestinationName(fallback);
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.set('place_name', fallback);
+      nextParams.set('lat', latlng.lat.toFixed(6));
+      nextParams.set('lng', latlng.lng.toFixed(6));
+      setSearchParams(nextParams);
+    }
+  };
+
   const handleSelectSlot = (slot, location) => {
     setSelectedSlot(slot);
     setModalLocation(location);
@@ -66,7 +111,9 @@ export const Search = () => {
       {/* Search Header Form */}
       <SearchForm
         initialValues={{
-          place_name: searchParams.get('place_name') || 'Hitech City',
+          place_name: destinationName,
+          lat: destinationCoords?.lat,
+          lng: destinationCoords?.lng,
           date: searchParams.get('date') || '',
           start_time: searchParams.get('start_time') || '',
           duration_minutes: Number(searchParams.get('duration_minutes')) || 120,
@@ -163,6 +210,9 @@ export const Search = () => {
                 locations={results?.locations || []}
                 onSelectLocation={(loc) => setSelectedLocation(loc)}
                 selectedLocationId={selectedLocation?.location_id}
+                onMapClick={handleMapClick}
+                destinationCoords={destinationCoords}
+                destinationName={destinationName}
               />
             </div>
           )}

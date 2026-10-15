@@ -1,12 +1,27 @@
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, Query
 from app.dependencies import get_optional_user
-from app.schemas.search import SearchResponse
-from app.services.search_service import search_parking
+from app.schemas.search import SearchResponse, LocationSuggestion, ReverseGeocodeResponse
+from app.services.search_service import search_parking, get_location_suggestions, reverse_geocode_coords
 from app.services.ai_client import ai_client
 from app.redis_client import get_cache, set_cache
 
 router = APIRouter(tags=["Search"])
+
+@router.get("/search/suggestions", response_model=List[LocationSuggestion])
+async def search_suggestions_endpoint(
+    q: str = Query(..., description="Search query string")
+):
+    if len(q.strip()) < 3:
+        return []
+    return await get_location_suggestions(q.strip())
+
+@router.get("/search/reverse-geocode", response_model=ReverseGeocodeResponse)
+async def reverse_geocode_endpoint(
+    lat: float = Query(...),
+    lng: float = Query(...),
+):
+    return await reverse_geocode_coords(lat, lng)
 
 @router.get("/search", response_model=SearchResponse)
 async def search_parking_endpoint(

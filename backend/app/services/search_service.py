@@ -59,6 +59,192 @@ async def geocode_place_name(place_name: str) -> Optional[Tuple[float, float]]:
     # Default to Hitech City center
     return 17.4435, 78.3772
 
+KNOWN_LANDMARKS = [
+    {"name": "Hitech City", "address": "Cyberabad, Madhapur, Hyderabad", "lat": 17.4435, "lng": 78.3772, "category": "area"},
+    {"name": "Cyber Towers", "address": "Hitech City Main Rd, Madhapur, Hyderabad", "lat": 17.4504, "lng": 78.3808, "category": "landmark"},
+    {"name": "Inorbit Mall", "address": "Mindspace, Madhapur, Hyderabad", "lat": 17.4344, "lng": 78.3866, "category": "landmark"},
+    {"name": "IKEA Hyderabad", "address": "Raidurg, Hitech City, Hyderabad", "lat": 17.4375, "lng": 78.3756, "category": "landmark"},
+    {"name": "Gachibowli", "address": "Financial District, Hyderabad, Telangana", "lat": 17.4401, "lng": 78.3489, "category": "area"},
+    {"name": "Madhapur", "address": "IT Corridor, Hyderabad, Telangana", "lat": 17.4483, "lng": 78.3915, "category": "area"},
+    {"name": "Jubilee Hills", "address": "Road No 36, Hyderabad, Telangana", "lat": 17.4319, "lng": 78.4073, "category": "area"},
+    {"name": "Banjara Hills", "address": "Road No 1 & 12, Hyderabad, Telangana", "lat": 17.4156, "lng": 78.4350, "category": "area"},
+    {"name": "Financial District", "address": "Nanakramguda, Gachibowli, Hyderabad", "lat": 17.4178, "lng": 78.3400, "category": "area"},
+    {"name": "Kondapur", "address": "Near Botanical Garden, Hyderabad", "lat": 17.4699, "lng": 78.3578, "category": "area"},
+    {"name": "Begumpet", "address": "Airport Road, Hyderabad, Telangana", "lat": 17.4447, "lng": 78.4664, "category": "area"},
+    {"name": "Secunderabad", "address": "Railway Station Road, Secunderabad", "lat": 17.4399, "lng": 78.4983, "category": "area"},
+    {"name": "Charminar", "address": "Old City, Hyderabad, Telangana", "lat": 17.3616, "lng": 78.4747, "category": "landmark"},
+    {"name": "Durgam Cheruvu", "address": "Cable Bridge, Jubilee Hills / Madhapur, Hyderabad", "lat": 17.4363, "lng": 78.3892, "category": "landmark"},
+    {"name": "KPHB Colony", "address": "Kukatpally Housing Board, Hyderabad", "lat": 17.4933, "lng": 78.3989, "category": "area"},
+    {"name": "Raheja Mindspace", "address": "IT Park, Madhapur, Hyderabad", "lat": 17.4407, "lng": 78.3814, "category": "landmark"},
+]
+
+async def get_location_suggestions(query: str) -> List[Dict[str, Any]]:
+    clean = query.strip()
+    if len(clean) < 3:
+        return []
+
+    cache_key = f"suggest:{clean.lower()}"
+    cached = await get_cache(cache_key)
+    if cached is not None and isinstance(cached, list):
+        return cached
+
+    results: List[Dict[str, Any]] = []
+    seen = set()
+
+    # 1. Search existing approved parking locations in database
+    like_pat = f"%{clean}%"
+    db_locs = await fetch_all(
+        """
+        SELECT id, name, address, lat, lng
+        FROM parking_locations
+        WHERE status = 'APPROVED'
+          AND (name LIKE %s OR address LIKE %s)
+        LIMIT 5
+        """,
+        (like_pat, like_pat),
+    )
+    for loc in db_locs:
+        key = (round(float(loc["lat"]), 4), round(float(loc["lng"]), 4))
+        if key not in seen:
+            seen.add(key)
+            results.append({
+                "id": f"loc-{loc['id']}",
+                "name": loc["name"],
+                "address": loc["address"],
+                "lat": float(loc["lat"]),
+                "lng": float(loc["lng"]),
+                "category": "parking",
+            })
+
+    # 2. Match known areas and landmarks
+    q_lower = clean.lower()
+    for item in KNOWN_LANDMARKS:
+        if q_lower in item["name"].lower() or q_lower in item["address"].lower():
+            key = (round(item["lat"], 4), round(item["lng"], 4))
+            if key not in seen:
+                seen.add(key)
+                results.append({
+                    "id": f"lm-{item['name'].lower().replace(' ', '-')}",
+                    "name": item["name"],
+                    "address": item["address"],
+                    "lat": item["lat"],
+                    "lng": item["lng"],
+                    "category": item["category"],
+                })
+
+    # 3. If fewer than 5 results, search OpenStreetMap Nominatim
+    if len(results) < 5:
+        url = "https://nominatim.openstreetmap.org/search"
+        headers = {"User-Agent": "SmartParkingApp/1.0 (admin@smartparking.local)"}
+        params = {
+            "q": f"{clean}, Hyderabad, India",
+            "format": "json",
+            "limit": 5,
+            "addressdetails": 1,
+        }
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                resp = await client.get(url, params=params, headers=headers)
+                if resp.status_code == 200:
+                    for item in resp.json():
+                        lat = float(item["lat"])
+                        lng = float(item["lon"])
+                        key = (round(lat, 4), round(lng, 4))
+                        if key not in seen:
+                            seen.add(key)
+                            name = item.get("name") or item.get("display_name", "").split(",")[0]
+                            results.append({
+                                "id": f"osm-{item.get('place_id', str(len(results)))}",
+                                "name": name,
+                                "address": item.get("display_name", ""),
+                                "lat": lat,
+                                "lng": lng,
+                                "category": "area",
+                            })
+        except Exception as e:
+            logger.debug(f"Nominatim suggestion search error: {e}")
+
+    await set_cache(cache_key, results, 3600)
+    return results
+
+async def reverse_geocode_coords(lat: float, lng: float) -> Dict[str, Any]:
+    cache_key = f"revgeo:{round(lat, 4)}:{round(lng, 4)}"
+    cached = await get_cache(cache_key)
+    if cached and isinstance(cached, dict):
+        return cached
+
+    # 1. Check if close to an existing approved parking location in DB
+    db_locs = await fetch_all(
+        "SELECT id, name, address, lat, lng FROM parking_locations WHERE status = 'APPROVED'"
+    )
+    closest_loc = None
+    min_dist = float("inf")
+    for loc in db_locs:
+        dist = haversine_distance_m(lat, lng, float(loc["lat"]), float(loc["lng"]))
+        if dist < min_dist:
+            min_dist = dist
+            closest_loc = loc
+
+    if closest_loc and min_dist <= 250:
+        result = {
+            "display_name": closest_loc["name"],
+            "area": closest_loc["address"],
+            "lat": lat,
+            "lng": lng,
+        }
+        await set_cache(cache_key, result, 86400)
+        return result
+
+    # 2. Try Nominatim reverse geocode
+    url = "https://nominatim.openstreetmap.org/reverse"
+    headers = {"User-Agent": "SmartParkingApp/1.0 (admin@smartparking.local)"}
+    params = {"lat": lat, "lon": lng, "format": "json"}
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            resp = await client.get(url, params=params, headers=headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                addr = data.get("address", {})
+                road = addr.get("road") or addr.get("suburb") or addr.get("neighbourhood") or ""
+                city = addr.get("city") or addr.get("state_district") or "Hyderabad"
+                name = road or data.get("name") or "Selected Location"
+                full_display = f"{name}, {city}" if road else (data.get("display_name", "Selected Location"))
+                result = {
+                    "display_name": name,
+                    "area": full_display,
+                    "lat": lat,
+                    "lng": lng,
+                }
+                await set_cache(cache_key, result, 86400)
+                return result
+    except Exception as e:
+        logger.debug(f"Nominatim reverse geocode error: {e}")
+
+    # 3. Fallback to nearest known landmark
+    nearest_landmark = None
+    nearest_d = float("inf")
+    for lm in KNOWN_LANDMARKS:
+        d = haversine_distance_m(lat, lng, lm["lat"], lm["lng"])
+        if d < nearest_d:
+            nearest_d = d
+            nearest_landmark = lm
+
+    if nearest_landmark and nearest_d < 5000:
+        label = f"Near {nearest_landmark['name']}"
+        area = f"{nearest_landmark['name']}, Hyderabad"
+    else:
+        label = f"Pinned Location ({lat:.4f}, {lng:.4f})"
+        area = "Hyderabad, Telangana"
+
+    result = {
+        "display_name": label,
+        "area": area,
+        "lat": lat,
+        "lng": lng,
+    }
+    await set_cache(cache_key, result, 86400)
+    return result
+
 # ── Main Parking Search ───────────────────────────────────────────────────────
 async def search_parking(
     user_preferences: Dict[str, Any],

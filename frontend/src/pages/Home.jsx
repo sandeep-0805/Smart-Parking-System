@@ -10,6 +10,8 @@ export const Home = () => {
   const handleHeroSearch = (searchParams) => {
     const query = new URLSearchParams();
     if (searchParams.place_name) query.set('place_name', searchParams.place_name);
+    if (searchParams.lat) query.set('lat', searchParams.lat);
+    if (searchParams.lng) query.set('lng', searchParams.lng);
     if (searchParams.date) query.set('date', searchParams.date);
     if (searchParams.start_time) query.set('start_time', searchParams.start_time);
     if (searchParams.duration_minutes) query.set('duration_minutes', searchParams.duration_minutes);
