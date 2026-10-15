@@ -193,8 +193,8 @@ export const SearchForm = ({ initialValues = {}, onSearch, loading = false }) =>
     setShowSuggestions(false);
     onSearch({
       place_name: placeName,
-      lat: coords.lat,
-      lng: coords.lng,
+      lat: coords.lat || undefined,
+      lng: coords.lng || undefined,
       date,
       start_time: startTime,
       duration_minutes: Number(durationMins),
@@ -270,7 +270,7 @@ export const SearchForm = ({ initialValues = {}, onSearch, loading = false }) =>
                 }
               }}
               onKeyDown={handleKeyDown}
-              placeholder="Type 3+ letters (e.g. Hit, Gac, Jub, Ban)..."
+              placeholder="Search any city, area or landmark (e.g. Bangalore, Mumbai, Delhi, Hitech City)..."
               className="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium pr-10"
               required
               autoComplete="off"

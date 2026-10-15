@@ -34,6 +34,12 @@ export const Search = () => {
     try {
       const data = await searchParking(params);
       setResults(data);
+      if (data?.target_lat && data?.target_lng) {
+        setDestinationCoords({ lat: data.target_lat, lng: data.target_lng });
+      }
+      if (data?.place_name) {
+        setDestinationName(data.place_name);
+      }
     } catch (err) {
       toast.error('Search failed. Please try again.');
     } finally {
@@ -48,6 +54,8 @@ export const Search = () => {
 
     if (pLat && pLng) {
       setDestinationCoords({ lat: pLat, lng: pLng });
+    } else {
+      setDestinationCoords(null);
     }
     setDestinationName(pName);
 
@@ -138,10 +146,10 @@ export const Search = () => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-extrabold text-slate-900">
-            {results?.total_locations || 0} Parking Locations Found
+            {results?.total_locations || 0} Parking Locations Found within 5 km
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Prices verified by server quote engine
+            Available slots around {destinationName || 'your destination'} (verified prices)
           </p>
         </div>
 

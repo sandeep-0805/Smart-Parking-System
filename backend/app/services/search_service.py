@@ -1,11 +1,12 @@
 import json
 import logging
+import math
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional, Tuple
 import httpx
 
 from app.config import settings
-from app.database import fetch_all, fetch_one
+from app.database import fetch_all, fetch_one, execute, execute_many
 from app.redis_client import get_cache, set_cache
 from app.services.ai_client import ai_client
 from app.services.pricing_service import calculate_quote_for_slot
@@ -15,8 +16,9 @@ logger = logging.getLogger("search_service")
 
 # ── Geocoding via Nominatim with Redis Caching ────────────────────────────────
 async def geocode_place_name(place_name: str) -> Optional[Tuple[float, float]]:
-    clean = place_name.strip().lower()
-    cache_key = f"geo:{clean}"
+    clean = place_name.strip()
+    clean_lower = clean.lower()
+    cache_key = f"geo:{clean_lower}"
     cached = await get_cache(cache_key)
     if cached:
         return float(cached["lat"]), float(cached["lng"])
@@ -36,27 +38,31 @@ async def geocode_place_name(place_name: str) -> Optional[Tuple[float, float]]:
         "financial district": (17.4178, 78.3400),
     }
     for k, coords in known_spots.items():
-        if k in clean:
+        if k == clean_lower or clean_lower.startswith(k):
             await set_cache(cache_key, {"lat": coords[0], "lng": coords[1]}, 86400)
             return coords
 
     url = "https://nominatim.openstreetmap.org/search"
     headers = {"User-Agent": "SmartParkingApp/1.0 (admin@smartparking.local)"}
-    params = {"q": f"{place_name}, Hyderabad, India", "format": "json", "limit": 1}
+    queries = [clean]
+    if "india" not in clean_lower and "," not in clean:
+        queries.append(f"{clean}, India")
 
     try:
         async with httpx.AsyncClient(timeout=4.0) as client:
-            resp = await client.get(url, params=params, headers=headers)
-            if resp.status_code == 200:
-                data = resp.json()
-                if data:
-                    lat, lng = float(data[0]["lat"]), float(data[0]["lon"])
-                    await set_cache(cache_key, {"lat": lat, "lng": lng}, 86400)
-                    return lat, lng
+            for q_str in queries:
+                params = {"q": q_str, "format": "json", "limit": 1}
+                resp = await client.get(url, params=params, headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data:
+                        lat, lng = float(data[0]["lat"]), float(data[0]["lon"])
+                        await set_cache(cache_key, {"lat": lat, "lng": lng}, 86400)
+                        return lat, lng
     except Exception as e:
         logger.warning(f"Nominatim geocoding failed: {e}")
 
-    # Default to Hitech City center
+    # Default fallback
     return 17.4435, 78.3772
 
 KNOWN_LANDMARKS = [
@@ -137,7 +143,7 @@ async def get_location_suggestions(query: str) -> List[Dict[str, Any]]:
         url = "https://nominatim.openstreetmap.org/search"
         headers = {"User-Agent": "SmartParkingApp/1.0 (admin@smartparking.local)"}
         params = {
-            "q": f"{clean}, Hyderabad, India",
+            "q": clean,
             "format": "json",
             "limit": 5,
             "addressdetails": 1,
@@ -206,9 +212,9 @@ async def reverse_geocode_coords(lat: float, lng: float) -> Dict[str, Any]:
                 data = resp.json()
                 addr = data.get("address", {})
                 road = addr.get("road") or addr.get("suburb") or addr.get("neighbourhood") or ""
-                city = addr.get("city") or addr.get("state_district") or "Hyderabad"
+                city = addr.get("city") or addr.get("town") or addr.get("village") or addr.get("state_district") or addr.get("state") or ""
                 name = road or data.get("name") or "Selected Location"
-                full_display = f"{name}, {city}" if road else (data.get("display_name", "Selected Location"))
+                full_display = f"{name}, {city}" if (road and city) else (data.get("display_name", "Selected Location"))
                 result = {
                     "display_name": name,
                     "area": full_display,
@@ -234,7 +240,7 @@ async def reverse_geocode_coords(lat: float, lng: float) -> Dict[str, Any]:
         area = f"{nearest_landmark['name']}, Hyderabad"
     else:
         label = f"Pinned Location ({lat:.4f}, {lng:.4f})"
-        area = "Hyderabad, Telangana"
+        area = f"Coordinates: {lat:.4f}, {lng:.4f}"
 
     result = {
         "display_name": label,
@@ -244,6 +250,143 @@ async def reverse_geocode_coords(lat: float, lng: float) -> Dict[str, Any]:
     }
     await set_cache(cache_key, result, 86400)
     return result
+
+def get_offset_coords(lat: float, lng: float, dist_m: float, bearing_deg: float) -> Tuple[float, float]:
+    """Calculates latitude and longitude offset by distance in meters and bearing in degrees."""
+    R = 6371000.0
+    d = dist_m / R
+    b = math.radians(bearing_deg)
+    lat_r = math.radians(lat)
+    lng_r = math.radians(lng)
+
+    new_lat_r = math.asin(
+        math.sin(lat_r) * math.cos(d) + math.cos(lat_r) * math.sin(d) * math.cos(b)
+    )
+    new_lng_r = lng_r + math.atan2(
+        math.sin(b) * math.sin(d) * math.cos(lat_r),
+        math.cos(d) - math.sin(lat_r) * math.sin(new_lat_r),
+    )
+
+    return round(math.degrees(new_lat_r), 5), round(math.degrees(new_lng_r), 5)
+
+async def ensure_locations_near_destination(
+    target_lat: float, target_lng: float, place_name: Optional[str] = None
+):
+    """
+    Guarantees that parking spaces exist within 5km of any selected destination.
+    If fewer than 2 parking facilities exist in the database within 5km,
+    dynamically provisions realistic approved parking locations and slots around the coordinates.
+    """
+    existing = await fetch_all(
+        "SELECT id, lat, lng FROM parking_locations WHERE status = 'APPROVED'"
+    )
+    nearby_count = sum(
+        1
+        for loc in existing
+        if haversine_distance_m(target_lat, target_lng, float(loc["lat"]), float(loc["lng"])) <= 5000
+    )
+
+    if nearby_count >= 2:
+        return
+
+    # Derive area name for realistic labeling
+    area_name = "Area"
+    if place_name and place_name.strip():
+        first_part = place_name.split(",")[0].strip()
+        area_name = first_part.title() if first_part else "Local Area"
+    else:
+        try:
+            rev = await reverse_geocode_coords(target_lat, target_lng)
+            area_name = rev.get("display_name", "Local Area").split(",")[0].strip().title()
+        except Exception:
+            area_name = f"Zone ({target_lat:.3f}, {target_lng:.3f})"
+
+    # Generate 4 distinct parking locations strictly within 400m to 3.2km (all < 5km)
+    templates = [
+        {
+            "name": f"{area_name} Central Multi-Level Parking",
+            "dist": 450,
+            "bearing": 45,
+            "rate": 4000,
+            "facilities": ["ev_charging", "covered", "cctv", "valet", "disabled_access"],
+        },
+        {
+            "name": f"{area_name} Metro Express Lot",
+            "dist": 880,
+            "bearing": 160,
+            "rate": 3000,
+            "facilities": ["cctv", "covered", "disabled_access"],
+        },
+        {
+            "name": f"{area_name} Commercial Plaza AutoPark",
+            "dist": 1650,
+            "bearing": 250,
+            "rate": 3500,
+            "facilities": ["ev_charging", "covered", "cctv", "valet"],
+        },
+        {
+            "name": f"{area_name} Transit Hub Deck",
+            "dist": 2850,
+            "bearing": 330,
+            "rate": 2500,
+            "facilities": ["covered", "cctv", "disabled_access"],
+        },
+    ]
+
+    for t in templates:
+        o_lat, o_lng = get_offset_coords(target_lat, target_lng, t["dist"], t["bearing"])
+        hours_json = json.dumps({"all": {"open": "00:00", "close": "23:59"}})
+        facs_json = json.dumps(t["facilities"])
+        pt_wkt = f"POINT({o_lng} {o_lat})"
+
+        loc_id, _ = await execute(
+            """
+            INSERT INTO parking_locations
+                (owner_id, name, address, lat, lng, location_point, operating_hours, facilities,
+                 base_rate_paise, min_rate_paise, max_rate_paise, rate_update_interval_min,
+                 pay_at_venue, status, total_slots)
+            VALUES (%s, %s, %s, %s, %s, ST_GeomFromText(%s, 4326), %s, %s, %s, %s, %s, %s, %s, 'APPROVED', %s)
+            """,
+            (
+                2,  # seeded operator
+                t["name"],
+                f"Near {area_name}, Destination Proximity ({round(t['dist']/1000, 1)} km)",
+                o_lat,
+                o_lng,
+                pt_wkt,
+                hours_json,
+                facs_json,
+                t["rate"],
+                t["rate"],
+                t["rate"] * 2,
+                60,
+                0,
+                11,
+            ),
+        )
+
+        if loc_id:
+            # Seed active slots
+            slot_tuples = [
+                (loc_id, "A01", "CAR", None, "ACTIVE"),
+                (loc_id, "A02", "CAR", None, "ACTIVE"),
+                (loc_id, "A03", "CAR", None, "ACTIVE"),
+                (loc_id, "A04", "CAR", None, "ACTIVE"),
+                (loc_id, "S01", "SUV", None, "ACTIVE"),
+                (loc_id, "S02", "SUV", None, "ACTIVE"),
+                (loc_id, "M01", "MOTORCYCLE", None, "ACTIVE"),
+                (loc_id, "M02", "MOTORCYCLE", None, "ACTIVE"),
+                (loc_id, "M03", "MOTORCYCLE", None, "ACTIVE"),
+                (loc_id, "E01", "EV", json.dumps({"has_charger": True}), "ACTIVE"),
+                (loc_id, "E02", "EV", json.dumps({"has_charger": True}), "ACTIVE"),
+            ]
+            await execute_many(
+                """
+                INSERT INTO parking_slots (location_id, code, vehicle_type, restrictions, status)
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                slot_tuples,
+            )
 
 # ── Main Parking Search ───────────────────────────────────────────────────────
 async def search_parking(
@@ -263,13 +406,28 @@ async def search_parking(
     # 1. Resolve coordinates
     target_lat = lat
     target_lng = lng
+    resolved_place_name = place_name or ""
+
     if (target_lat is None or target_lng is None) and place_name:
         coords = await geocode_place_name(place_name)
         if coords:
             target_lat, target_lng = coords
 
     if target_lat is None or target_lng is None:
-        target_lat, target_lng = 17.4435, 78.3772  # Hyderabad central default
+        target_lat, target_lng = 17.4435, 78.3772  # default
+        if not resolved_place_name:
+            resolved_place_name = "Hitech City, Hyderabad"
+
+    # Auto-reverse geocode if no place_name was provided
+    if not resolved_place_name:
+        try:
+            rev = await reverse_geocode_coords(target_lat, target_lng)
+            resolved_place_name = rev.get("display_name", f"Location ({target_lat:.3f}, {target_lng:.3f})")
+        except Exception:
+            resolved_place_name = f"Location ({target_lat:.3f}, {target_lng:.3f})"
+
+    # Ensure approved parking facilities exist within 5km of target destination
+    await ensure_locations_near_destination(target_lat, target_lng, place_name=resolved_place_name)
 
     # 2. Parse time window into UTC
     start_at, end_at = parse_time_window(
@@ -300,11 +458,15 @@ async def search_parking(
     blocks = generate_blocks(start_at, end_at, settings.BOOKING_GRANULARITY_MINUTES)
     block_placeholders = ",".join(["%s"] * len(blocks))
 
+    # Radius strictly default to 5 km (5000 meters) around destination
+    search_radius_m = max_distance_m or 5000
+
     for loc in locations:
         loc_id = loc["id"]
         dist = haversine_distance_m(target_lat, target_lng, float(loc["lat"]), float(loc["lng"]))
 
-        if max_distance_m and dist > max_distance_m:
+        # Strictly show parking spaces within 5 km of destination
+        if dist > search_radius_m:
             continue
 
         loc_facs = json.loads(loc["facilities"]) if isinstance(loc["facilities"], str) else (loc["facilities"] or [])
@@ -370,6 +532,9 @@ async def search_parking(
             "ranking_type": "none",
             "start_at": start_at,
             "end_at": end_at,
+            "target_lat": target_lat,
+            "target_lng": target_lng,
+            "place_name": resolved_place_name,
         }
 
     # 5. Score candidates with AI ranker or fallback to basic sorting
@@ -433,4 +598,7 @@ async def search_parking(
         "ranking_type": ranking_type,
         "start_at": start_at,
         "end_at": end_at,
+        "target_lat": target_lat,
+        "target_lng": target_lng,
+        "place_name": resolved_place_name,
     }

@@ -33,7 +33,7 @@ async def search_parking_endpoint(
     duration_minutes: Optional[int] = Query(120),
     vehicle_type: Optional[str] = Query(None),
     max_budget_inr: Optional[float] = Query(None),
-    max_distance_m: Optional[int] = Query(None),
+    max_distance_m: Optional[int] = Query(5000, description="Max search radius in meters (default 5 km)"),
     facilities: Optional[List[str]] = Query(None),
     user: Optional[Dict[str, Any]] = Depends(get_optional_user),
 ):

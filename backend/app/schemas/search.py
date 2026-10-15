@@ -30,6 +30,9 @@ class SearchResponse(BaseModel):
     ranking_type: str = "weighted"  # weighted or basic
     start_at: datetime
     end_at: datetime
+    target_lat: Optional[float] = None
+    target_lng: Optional[float] = None
+    place_name: Optional[str] = None
 
 class LocationSuggestion(BaseModel):
     id: str
