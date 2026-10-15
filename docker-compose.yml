@@ -1,0 +1,203 @@
+services:
+  # ── Frontend (nginx + built SPA) ───────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - public
+    restart: unless-stopped
+
+  # ── Backend API ────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file: .env
+    expose:
+      - "8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - public
+      - internal
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  # ── Background Worker (same image, scheduler command) ──────────────
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["python", "-m", "app.worker"]
+    env_file: .env
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - internal
+    deploy:
+      replicas: 1
+    restart: unless-stopped
+
+  # ── One-shot migration runner ──────────────────────────────────────
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["python", "-m", "app.migrate"]
+    env_file: .env
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - internal
+
+  # ── AI / ML Service ────────────────────────────────────────────────
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    env_file: .env
+    expose:
+      - "8001"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      ollama-init:
+        condition: service_completed_successfully
+    volumes:
+      - model_artifacts:/app/model_artifacts
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # ── Ollama LLM server ─────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_models:/root/.ollama
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 10s
+    restart: unless-stopped
+
+  # ── One-shot: pull the model on first run ──────────────────────────
+  ollama-init:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["bash", "/scripts/pull-model.sh"]
+    volumes:
+      - ./infra/ollama:/scripts:ro
+    environment:
+      OLLAMA_HOST: "http://ollama:11434"
+      OLLAMA_MODEL: "${OLLAMA_MODEL:-llama3.2:3b}"
+    networks:
+      - internal
+
+  # ── MySQL 8.4 LTS ─────────────────────────────────────────────────
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:-rootpassword}"
+      MYSQL_DATABASE: "${MYSQL_DATABASE:-smart_parking}"
+      MYSQL_USER: "${MYSQL_USER:-parking_user}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-parking_pass}"
+    command: >-
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --default-time-zone=+00:00
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./infra/mysql/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+    restart: unless-stopped
+
+  # ── Redis 7 ────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Mailpit (dev email) ────────────────────────────────────────────
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - internal
+    profiles:
+      - dev
+      - tools
+
+  # ── Adminer (DB UI) ───────────────────────────────────────────────
+  adminer:
+    image: adminer:latest
+    ports:
+      - "8080:8080"
+    networks:
+      - internal
+    depends_on:
+      mysql:
+        condition: service_healthy
+    profiles:
+      - tools
+
+# ── Networks ───────────────────────────────────────────────────────
+networks:
+  public:
+    driver: bridge
+  internal:
+    driver: bridge
+
+# ── Volumes ────────────────────────────────────────────────────────
+volumes:
+  mysql_data:
+  redis_data:
+  ollama_models:
+  model_artifacts:

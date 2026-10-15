@@ -1,0 +1,131 @@
+name: SmartParking CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Backend: lint, type-check, test ────────────────────────────────
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: testroot
+          MYSQL_DATABASE: smart_parking_test
+          MYSQL_USER: test_user
+          MYSQL_PASSWORD: test_pass
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=5
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Lint (Ruff)
+        run: ruff check .
+      - name: Type check (mypy)
+        run: mypy app/ --ignore-missing-imports
+        continue-on-error: true
+      - name: Test
+        env:
+          MYSQL_HOST: localhost
+          MYSQL_PORT: 3306
+          MYSQL_USER: test_user
+          MYSQL_PASSWORD: test_pass
+          MYSQL_DATABASE: smart_parking_test
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET: ci-test-secret-key-at-least-32-characters
+          RAZORPAY_KEY_ID: rzp_test_fake
+          RAZORPAY_KEY_SECRET: fake_secret
+          RAZORPAY_WEBHOOK_SECRET: fake_webhook_secret
+          AI_SERVICE_URL: http://localhost:8001
+          AI_SERVICE_TOKEN: ci-test-token
+        run: pytest -v --tb=short
+
+  # ── AI Service: lint, test ─────────────────────────────────────────
+  ai-service:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Lint (Ruff)
+        run: ruff check .
+      - name: Test (unit only, no Ollama)
+        run: pytest tests/ -v --tb=short -k "not eval"
+
+  # ── Frontend: lint, build ──────────────────────────────────────────
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Lint
+        run: npx eslint src/ --max-warnings=0
+        continue-on-error: true
+      - name: Build
+        run: npm run build
+
+  # ── Docker: build and smoke test ──────────────────────────────────
+  docker:
+    runs-on: ubuntu-latest
+    needs: [backend, ai-service, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Copy env
+        run: cp .env.example .env
+      - name: Build all images
+        run: docker compose build --parallel
+      - name: Start services (without Ollama for CI speed)
+        run: |
+          # Start only core services for smoke test
+          docker compose up -d mysql redis
+          sleep 15
+          docker compose up -d migrate
+          sleep 5
+          docker compose up -d backend
+          sleep 10
+      - name: Health check
+        run: |
+          curl -sf http://localhost:8000/api/v1/health || exit 1
+          echo "Backend health check passed"
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v

@@ -1,0 +1,54 @@
+# Development overrides — use with:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - ./frontend/index.html:/app/index.html
+    environment:
+      API_TARGET: "http://backend:8000"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  backend:
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/app/app
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    environment:
+      LOG_LEVEL: DEBUG
+      FRONTEND_URL: "http://localhost:3000"
+
+  worker:
+    volumes:
+      - ./backend/app:/app/app
+    environment:
+      LOG_LEVEL: DEBUG
+
+  ai-service:
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./ai-service/app:/app/app
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--reload"]
+    environment:
+      LOG_LEVEL: DEBUG
+
+  mailpit:
+    profiles: []
+
+  mysql:
+    ports:
+      - "3306:3306"
+
+  redis:
+    ports:
+      - "6379:6379"
