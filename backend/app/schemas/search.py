@@ -33,6 +33,8 @@ class SearchResponse(BaseModel):
     target_lat: Optional[float] = None
     target_lng: Optional[float] = None
     place_name: Optional[str] = None
+    nearest_location: Optional[Dict[str, Any]] = None
+    message: Optional[str] = None
 
 class LocationSuggestion(BaseModel):
     id: str

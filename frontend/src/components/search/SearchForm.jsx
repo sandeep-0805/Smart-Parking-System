@@ -57,9 +57,9 @@ export const SearchForm = ({ initialValues = {}, onSearch, loading = false }) =>
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Fetch suggestions with debounce when placeName has >= 3 chars
+  // Fetch suggestions with debounce when placeName has >= 2 chars
   useEffect(() => {
-    if (!placeName || placeName.trim().length < 3) {
+    if (!placeName || placeName.trim().length < 2) {
       setSuggestions([]);
       setShowSuggestions(false);
       return;
@@ -317,9 +317,19 @@ export const SearchForm = ({ initialValues = {}, onSearch, loading = false }) =>
                   </button>
                 ))
               ) : (
-                <div className="p-4 text-center text-xs text-slate-500">
-                  No matching locations found for "{placeName}".
-                </div>
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  className="w-full p-3.5 text-left text-xs text-slate-700 hover:bg-blue-50/80 transition-colors flex items-center justify-between"
+                >
+                  <div className="flex items-center space-x-2">
+                    <FiSearch className="text-blue-600 shrink-0 text-sm" />
+                    <span>Search for <strong className="text-slate-900">"{placeName}"</strong></span>
+                  </div>
+                  <span className="text-[11px] font-semibold text-blue-600 bg-blue-100/70 px-2 py-0.5 rounded">
+                    Press Enter ↵
+                  </span>
+                </button>
               )}
             </div>
           )}

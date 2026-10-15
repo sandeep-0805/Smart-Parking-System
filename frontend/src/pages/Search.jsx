@@ -201,11 +201,48 @@ export const Search = () => {
                   />
                 ))
               ) : (
-                <div className="text-center py-16 bg-white rounded-2xl border border-slate-200 p-8">
-                  <h3 className="font-bold text-slate-800 text-base">No available slots found</h3>
-                  <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                    Try extending your search radius, selecting a different time window, or clearing facility filters.
-                  </p>
+                <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-5 text-center">
+                  <div className="w-14 h-14 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto text-2xl shadow-inner">
+                    🅿️
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-lg">
+                      No parking stations found within 5 km
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                      There are currently no active parking facilities within a 5 km radius of{' '}
+                      <strong className="text-slate-800">{destinationName}</strong>.
+                    </p>
+                  </div>
+
+                  {results?.nearest_location && (
+                    <div className="mt-4 text-left bg-gradient-to-r from-blue-50/80 to-indigo-50/60 border border-blue-200/90 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-700 bg-blue-100/90 px-2.5 py-0.5 rounded-full inline-block">
+                          Nearest Available Station ({results.nearest_location.distance_km} km away)
+                        </span>
+                        <h4 className="font-bold text-slate-900 text-sm sm:text-base">
+                          {results.nearest_location.name}
+                        </h4>
+                        <p className="text-xs text-slate-600">
+                          {results.nearest_location.address}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextParams = new URLSearchParams(searchParams);
+                          nextParams.set('place_name', results.nearest_location.name);
+                          nextParams.set('lat', results.nearest_location.lat);
+                          nextParams.set('lng', results.nearest_location.lng);
+                          setSearchParams(nextParams);
+                        }}
+                        className="inline-flex items-center justify-center px-4 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm transition-all hover:shadow-md shrink-0 cursor-pointer"
+                      >
+                        Search Around This Station ({results.nearest_location.distance_km} km)
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

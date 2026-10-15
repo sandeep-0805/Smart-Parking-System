@@ -14,90 +14,196 @@ from app.utils import haversine_distance_m, utc_now, generate_blocks, parse_time
 
 logger = logging.getLogger("search_service")
 
-# ── Geocoding via Nominatim with Redis Caching ────────────────────────────────
-async def geocode_place_name(place_name: str) -> Optional[Tuple[float, float]]:
-    clean = place_name.strip()
-    clean_lower = clean.lower()
-    cache_key = f"geo:{clean_lower}"
-    cached = await get_cache(cache_key)
-    if cached:
-        return float(cached["lat"]), float(cached["lng"])
-
-    # Fallback known Hyderabad coordinates
-    known_spots = {
-        "hitech city": (17.4435, 78.3772),
-        "gachibowli": (17.4401, 78.3489),
-        "madhapur": (17.4483, 78.3915),
-        "jubilee hills": (17.4319, 78.4073),
-        "banjara hills": (17.4156, 78.4350),
-        "inorbit mall": (17.4344, 78.3866),
-        "ikea": (17.4375, 78.3756),
-        "secunderabad": (17.4399, 78.4983),
-        "charminar": (17.3616, 78.4747),
-        "hyderabad airport": (17.2403, 78.4294),
-        "financial district": (17.4178, 78.3400),
-    }
-    for k, coords in known_spots.items():
-        if k == clean_lower or clean_lower.startswith(k):
-            await set_cache(cache_key, {"lat": coords[0], "lng": coords[1]}, 86400)
-            return coords
-
-    url = "https://nominatim.openstreetmap.org/search"
-    headers = {"User-Agent": "SmartParkingApp/1.0 (admin@smartparking.local)"}
-    queries = [clean]
-    if "india" not in clean_lower and "," not in clean:
-        queries.append(f"{clean}, India")
-
-    try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
-            for q_str in queries:
-                params = {"q": q_str, "format": "json", "limit": 1}
-                resp = await client.get(url, params=params, headers=headers)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    if data:
-                        lat, lng = float(data[0]["lat"]), float(data[0]["lon"])
-                        await set_cache(cache_key, {"lat": lat, "lng": lng}, 86400)
-                        return lat, lng
-    except Exception as e:
-        logger.warning(f"Nominatim geocoding failed: {e}")
-
-    # Default fallback
-    return 17.4435, 78.3772
-
-KNOWN_LANDMARKS = [
-    {"name": "Hitech City", "address": "Cyberabad, Madhapur, Hyderabad", "lat": 17.4435, "lng": 78.3772, "category": "area"},
+# ── Comprehensive Indian Metro & Regional Hubs Registry ───────────────────────
+KNOWN_LOCATIONS = [
+    # Telangana / Hyderabad
+    {"name": "Hitech City", "address": "Cyberabad, Madhapur, Hyderabad, Telangana", "lat": 17.4435, "lng": 78.3772, "category": "area"},
     {"name": "Cyber Towers", "address": "Hitech City Main Rd, Madhapur, Hyderabad", "lat": 17.4504, "lng": 78.3808, "category": "landmark"},
-    {"name": "Inorbit Mall", "address": "Mindspace, Madhapur, Hyderabad", "lat": 17.4344, "lng": 78.3866, "category": "landmark"},
+    {"name": "Inorbit Mall", "address": "Mindspace, Madhapur, Hyderabad, Telangana", "lat": 17.4344, "lng": 78.3866, "category": "landmark"},
     {"name": "IKEA Hyderabad", "address": "Raidurg, Hitech City, Hyderabad", "lat": 17.4375, "lng": 78.3756, "category": "landmark"},
     {"name": "Gachibowli", "address": "Financial District, Hyderabad, Telangana", "lat": 17.4401, "lng": 78.3489, "category": "area"},
     {"name": "Madhapur", "address": "IT Corridor, Hyderabad, Telangana", "lat": 17.4483, "lng": 78.3915, "category": "area"},
     {"name": "Jubilee Hills", "address": "Road No 36, Hyderabad, Telangana", "lat": 17.4319, "lng": 78.4073, "category": "area"},
     {"name": "Banjara Hills", "address": "Road No 1 & 12, Hyderabad, Telangana", "lat": 17.4156, "lng": 78.4350, "category": "area"},
     {"name": "Financial District", "address": "Nanakramguda, Gachibowli, Hyderabad", "lat": 17.4178, "lng": 78.3400, "category": "area"},
-    {"name": "Kondapur", "address": "Near Botanical Garden, Hyderabad", "lat": 17.4699, "lng": 78.3578, "category": "area"},
+    {"name": "Kondapur", "address": "Near Botanical Garden, Hyderabad, Telangana", "lat": 17.4699, "lng": 78.3578, "category": "area"},
     {"name": "Begumpet", "address": "Airport Road, Hyderabad, Telangana", "lat": 17.4447, "lng": 78.4664, "category": "area"},
-    {"name": "Secunderabad", "address": "Railway Station Road, Secunderabad", "lat": 17.4399, "lng": 78.4983, "category": "area"},
+    {"name": "Secunderabad", "address": "Railway Station Road, Secunderabad, Telangana", "lat": 17.4399, "lng": 78.4983, "category": "area"},
     {"name": "Charminar", "address": "Old City, Hyderabad, Telangana", "lat": 17.3616, "lng": 78.4747, "category": "landmark"},
     {"name": "Durgam Cheruvu", "address": "Cable Bridge, Jubilee Hills / Madhapur, Hyderabad", "lat": 17.4363, "lng": 78.3892, "category": "landmark"},
-    {"name": "KPHB Colony", "address": "Kukatpally Housing Board, Hyderabad", "lat": 17.4933, "lng": 78.3989, "category": "area"},
-    {"name": "Raheja Mindspace", "address": "IT Park, Madhapur, Hyderabad", "lat": 17.4407, "lng": 78.3814, "category": "landmark"},
+    {"name": "KPHB Colony", "address": "Kukatpally Housing Board, Hyderabad, Telangana", "lat": 17.4933, "lng": 78.3989, "category": "area"},
+    {"name": "Kukatpally", "address": "Main Road, Hyderabad, Telangana", "lat": 17.4849, "lng": 78.4138, "category": "area"},
+    {"name": "Miyapur", "address": "Metro Terminal, Hyderabad, Telangana", "lat": 17.4968, "lng": 78.3614, "category": "area"},
+    {"name": "Ameerpet", "address": "Metro Interchange, Hyderabad, Telangana", "lat": 17.4375, "lng": 78.4483, "category": "area"},
+    {"name": "Somajiguda", "address": "Raj Bhavan Rd, Hyderabad, Telangana", "lat": 17.4265, "lng": 78.4593, "category": "area"},
+    {"name": "Mehdipatnam", "address": "P.V. Narasimha Rao Expressway, Hyderabad", "lat": 17.3916, "lng": 78.4402, "category": "area"},
+    {"name": "Uppal", "address": "Inner Ring Road, Hyderabad, Telangana", "lat": 17.4018, "lng": 78.5602, "category": "area"},
+    {"name": "LB Nagar", "address": "Vijayawada Highway Junction, Hyderabad", "lat": 17.3457, "lng": 78.5522, "category": "area"},
+    {"name": "Shamshabad RGIA Airport", "address": "Rajiv Gandhi International Airport, Hyderabad", "lat": 17.2403, "lng": 78.4294, "category": "landmark"},
+
+    # Andhra Pradesh / Amaravati / Vijayawada
+    {"name": "Krishna Lanka", "address": "NH-16, Krishna Lanka, Vijayawada, Andhra Pradesh", "lat": 16.5050, "lng": 80.6270, "category": "area"},
+    {"name": "VIT-AP University", "address": "Beside Inavolu, Amaravati, Andhra Pradesh 522237", "lat": 16.4965, "lng": 80.4992, "category": "landmark"},
+    {"name": "SRM University AP", "address": "Neerukonda, Amaravati, Andhra Pradesh 522240", "lat": 16.4673, "lng": 80.5085, "category": "landmark"},
+    {"name": "Benz Circle", "address": "MG Road, Benz Circle, Vijayawada, Andhra Pradesh", "lat": 16.5003, "lng": 80.6508, "category": "landmark"},
+    {"name": "MG Road Vijayawada", "address": "Bandar Rd, Governor Peta, Vijayawada, Andhra Pradesh", "lat": 16.5085, "lng": 80.6432, "category": "area"},
+    {"name": "Vijayawada Railway Station", "address": "Station Rd, Tarapet, Vijayawada, Andhra Pradesh", "lat": 16.5186, "lng": 80.6201, "category": "landmark"},
+    {"name": "Kanaka Durga Temple", "address": "Indrakeeladri, Vijayawada, Andhra Pradesh", "lat": 16.5152, "lng": 80.6074, "category": "landmark"},
+    {"name": "PNBS Bus Station Vijayawada", "address": "Pandit Nehru Bus Station, Vijayawada, AP", "lat": 16.5098, "lng": 80.6185, "category": "landmark"},
+    {"name": "Guntur", "address": "Guntur, Andhra Pradesh", "lat": 16.3067, "lng": 80.4365, "category": "area"},
+    {"name": "Amaravati", "address": "Capital City, Andhra Pradesh", "lat": 16.5131, "lng": 80.5165, "category": "area"},
+    {"name": "Mangalagiri", "address": "Guntur District, Andhra Pradesh", "lat": 16.4326, "lng": 80.5604, "category": "area"},
+    {"name": "Visakhapatnam", "address": "Beach Road, Vizag, Andhra Pradesh", "lat": 17.6868, "lng": 83.2185, "category": "area"},
+    {"name": "Tirupati", "address": "Tirupati, Andhra Pradesh", "lat": 13.6288, "lng": 79.4192, "category": "area"},
+
+    # Karnataka / Bengaluru (Bangalore)
+    {"name": "Koramangala", "address": "4th & 5th Block, Koramangala, Bengaluru, Karnataka", "lat": 12.9352, "lng": 77.6245, "category": "area"},
+    {"name": "Indiranagar", "address": "100ft Rd, HAL 2nd Stage, Indiranagar, Bengaluru", "lat": 12.9719, "lng": 77.6412, "category": "area"},
+    {"name": "MG Road Bangalore", "address": "Ashok Nagar, MG Road, Bengaluru, Karnataka", "lat": 12.9738, "lng": 77.6070, "category": "area"},
+    {"name": "Brigade Road", "address": "Shanthala Nagar, Ashok Nagar, Bengaluru, Karnataka", "lat": 12.9723, "lng": 77.6074, "category": "area"},
+    {"name": "Whitefield", "address": "ITPL Main Rd, Whitefield, Bengaluru, Karnataka", "lat": 12.9855, "lng": 77.7289, "category": "area"},
+    {"name": "HSR Layout", "address": "27th Main Rd, HSR Layout, Bengaluru, Karnataka", "lat": 12.9116, "lng": 77.6389, "category": "area"},
+    {"name": "Electronic City", "address": "Phase 1, Hosur Rd, Bengaluru, Karnataka", "lat": 12.8452, "lng": 77.6602, "category": "area"},
+    {"name": "Jayanagar", "address": "4th Block, Jayanagar, Bengaluru, Karnataka", "lat": 12.9308, "lng": 77.5838, "category": "area"},
+    {"name": "Malleshwaram", "address": "Sampige Rd, Malleshwaram, Bengaluru, Karnataka", "lat": 12.9982, "lng": 77.5704, "category": "area"},
+    {"name": "Majestic Bangalore", "address": "Kempegowda Bus Station & Railway, Bengaluru", "lat": 12.9767, "lng": 77.5713, "category": "landmark"},
+    {"name": "BTM Layout", "address": "Outer Ring Road, BTM Layout, Bengaluru, Karnataka", "lat": 12.9166, "lng": 77.6101, "category": "area"},
+    {"name": "Marathahalli", "address": "ORR Junction, Marathahalli, Bengaluru, Karnataka", "lat": 12.9591, "lng": 77.6974, "category": "area"},
+    {"name": "Bellandur", "address": "Outer Ring Rd, Bellandur, Bengaluru, Karnataka", "lat": 12.9304, "lng": 77.6784, "category": "area"},
+
+    # Maharashtra / Mumbai & Pune
+    {"name": "Nariman Point", "address": "Marine Drive, Nariman Point, Mumbai, Maharashtra", "lat": 18.9284, "lng": 72.8229, "category": "area"},
+    {"name": "Marine Drive", "address": "Netaji Subhash Chandra Bose Rd, Mumbai, Maharashtra", "lat": 18.9432, "lng": 72.8235, "category": "area"},
+    {"name": "Bandra Kurla Complex (BKC)", "address": "G Block, BKC, Bandra East, Mumbai, Maharashtra", "lat": 19.0657, "lng": 72.8687, "category": "area"},
+    {"name": "Bandra West", "address": "Linking Rd & Hill Rd, Bandra West, Mumbai", "lat": 19.0607, "lng": 72.8362, "category": "area"},
+    {"name": "Lower Parel", "address": "Senapati Bapat Marg, Lower Parel, Mumbai", "lat": 18.9953, "lng": 72.8258, "category": "area"},
+    {"name": "Colaba", "address": "Colaba Causeway, Mumbai, Maharashtra", "lat": 18.9067, "lng": 72.8147, "category": "area"},
+    {"name": "Andheri West", "address": "Link Road, Andheri West, Mumbai, Maharashtra", "lat": 19.1136, "lng": 72.8697, "category": "area"},
+    {"name": "Dadar", "address": "Dadar West, Mumbai, Maharashtra", "lat": 19.0178, "lng": 72.8478, "category": "area"},
+    {"name": "Juhu Beach", "address": "Juhu Tara Rd, Juhu, Mumbai, Maharashtra", "lat": 19.0988, "lng": 72.8264, "category": "landmark"},
+    {"name": "Powai", "address": "Hiranandani Gardens, Powai, Mumbai, Maharashtra", "lat": 19.1176, "lng": 72.9060, "category": "area"},
+    {"name": "FC Road Pune", "address": "Fergusson College Rd, Shivajinagar, Pune, Maharashtra", "lat": 18.5222, "lng": 73.8415, "category": "area"},
+    {"name": "Koregaon Park Pune", "address": "North Main Rd, Koregaon Park, Pune, Maharashtra", "lat": 18.5362, "lng": 73.8940, "category": "area"},
+    {"name": "Hinjewadi Pune", "address": "Rajiv Gandhi Infotech Park, Hinjewadi, Pune", "lat": 18.5913, "lng": 73.7389, "category": "area"},
+    {"name": "Viman Nagar Pune", "address": "Phoenix Marketcity, Viman Nagar, Pune", "lat": 18.5679, "lng": 73.9143, "category": "area"},
+
+    # Delhi / NCR
+    {"name": "Connaught Place", "address": "Inner Circle, Connaught Place, New Delhi, Delhi", "lat": 28.6315, "lng": 77.2167, "category": "area"},
+    {"name": "Cyber Hub Gurgaon", "address": "DLF Phase 2, Sector 24, Gurugram, Haryana", "lat": 28.4950, "lng": 77.0890, "category": "landmark"},
+    {"name": "Khan Market", "address": "Rabindra Nagar, New Delhi, Delhi", "lat": 28.6003, "lng": 77.2270, "category": "area"},
+    {"name": "Hauz Khas Village", "address": "Deer Park, Hauz Khas, New Delhi, Delhi", "lat": 28.5534, "lng": 77.1945, "category": "area"},
+    {"name": "Sector 18 Noida", "address": "Atta Market, Sector 18, Noida, Uttar Pradesh", "lat": 28.5708, "lng": 77.3218, "category": "area"},
+    {"name": "Chandni Chowk", "address": "Old Delhi, New Delhi, Delhi", "lat": 28.6506, "lng": 77.2303, "category": "area"},
+    {"name": "India Gate", "address": "Rajpath, India Gate, New Delhi, Delhi", "lat": 28.6129, "lng": 77.2295, "category": "landmark"},
+    {"name": "Karol Bagh", "address": "Ghaffar Market, Karol Bagh, New Delhi, Delhi", "lat": 28.6514, "lng": 77.1907, "category": "area"},
+    {"name": "Saket", "address": "Select Citywalk, Saket District Centre, New Delhi", "lat": 28.5284, "lng": 77.2185, "category": "area"},
+    {"name": "Aerocity Delhi", "address": "Near IGI Airport, Aerocity, New Delhi, Delhi", "lat": 28.5535, "lng": 77.1218, "category": "area"},
+
+    # Tamil Nadu / Chennai
+    {"name": "T. Nagar Chennai", "address": "Pondy Bazaar, T. Nagar, Chennai, Tamil Nadu", "lat": 13.0418, "lng": 80.2341, "category": "area"},
+    {"name": "Anna Nagar Chennai", "address": "Tower Park, Anna Nagar West, Chennai, Tamil Nadu", "lat": 13.0850, "lng": 80.2105, "category": "area"},
+    {"name": "Marina Beach Chennai", "address": "Kamarajar Salai, Triplicane, Chennai, Tamil Nadu", "lat": 13.0500, "lng": 80.2824, "category": "landmark"},
+    {"name": "Nungambakkam Chennai", "address": "Khader Nawaz Khan Rd, Nungambakkam, Chennai", "lat": 13.0604, "lng": 80.2428, "category": "area"},
+    {"name": "Velachery Chennai", "address": "Phoenix Marketcity, Velachery, Chennai, Tamil Nadu", "lat": 12.9815, "lng": 80.2180, "category": "area"},
+
+    # West Bengal / Kolkata
+    {"name": "Park Street Kolkata", "address": "Park Street, Mullick Bazar, Kolkata, West Bengal", "lat": 22.5488, "lng": 88.3582, "category": "area"},
+    {"name": "Salt Lake Sector V", "address": "IT Hub, Sector V, Bidhannagar, Kolkata, West Bengal", "lat": 22.5786, "lng": 88.4328, "category": "area"},
+    {"name": "Howrah Station", "address": "Howrah Railway Station, Howrah, West Bengal", "lat": 22.5839, "lng": 88.3426, "category": "landmark"},
 ]
 
+# ── Geocoding Engine (Registry -> DB -> Photon -> Nominatim) ─────────────────
+async def geocode_place_name(place_name: str) -> Optional[Tuple[float, float]]:
+    clean = place_name.strip()
+    if not clean:
+        return None
+
+    clean_lower = clean.lower()
+    cache_key = f"geo:{clean_lower}"
+    cached = await get_cache(cache_key)
+    if cached and isinstance(cached, dict) and "lat" in cached and "lng" in cached:
+        return float(cached["lat"]), float(cached["lng"])
+
+    # 1. Match in local Indian Metro Registry
+    for item in KNOWN_LOCATIONS:
+        n_lower = item["name"].lower()
+        if clean_lower == n_lower or clean_lower in n_lower or n_lower in clean_lower:
+            coords = (item["lat"], item["lng"])
+            await set_cache(cache_key, {"lat": coords[0], "lng": coords[1]}, 86400)
+            return coords
+
+    # 2. Match approved parking location in database
+    like_pat = f"%{clean}%"
+    db_loc = await fetch_one(
+        "SELECT lat, lng FROM parking_locations WHERE status = 'APPROVED' AND (name LIKE %s OR address LIKE %s) LIMIT 1",
+        (like_pat, like_pat),
+    )
+    if db_loc:
+        coords = (float(db_loc["lat"]), float(db_loc["lng"]))
+        await set_cache(cache_key, {"lat": coords[0], "lng": coords[1]}, 86400)
+        return coords
+
+    # 3. Query Photon Geocoder (OSM-based, fast, no rate-limit blocking)
+    try:
+        photon_url = f"https://photon.komoot.io/api/?q={clean}&limit=1"
+        async with httpx.AsyncClient(timeout=3.5) as client:
+            resp = await client.get(photon_url, headers={"User-Agent": "SmartParking/1.0"})
+            if resp.status_code == 200:
+                data = resp.json()
+                features = data.get("features", [])
+                if features:
+                    lon, lat = features[0]["geometry"]["coordinates"]
+                    await set_cache(cache_key, {"lat": lat, "lng": lon}, 86400)
+                    return float(lat), float(lon)
+    except Exception as e:
+        logger.debug(f"Photon geocode lookup failed: {e}")
+
+    # 4. Fallback to OpenStreetMap Nominatim
+    try:
+        url = "https://nominatim.openstreetmap.org/search"
+        headers = {"User-Agent": "SmartParkingApp/1.0 (admin@smartparking.local)"}
+        params = {"q": clean, "format": "json", "limit": 1}
+        async with httpx.AsyncClient(timeout=3.5) as client:
+            resp = await client.get(url, params=params, headers=headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data:
+                    lat, lng = float(data[0]["lat"]), float(data[0]["lon"])
+                    await set_cache(cache_key, {"lat": lat, "lng": lng}, 86400)
+                    return lat, lng
+    except Exception as e:
+        logger.debug(f"Nominatim geocode lookup failed: {e}")
+
+    return None
+
+# ── Autocomplete Suggestions (DB -> Registry -> Photon) ──────────────────────
 async def get_location_suggestions(query: str) -> List[Dict[str, Any]]:
     clean = query.strip()
-    if len(clean) < 3:
+    if len(clean) < 2:
         return []
 
     cache_key = f"suggest:{clean.lower()}"
     cached = await get_cache(cache_key)
-    if cached is not None and isinstance(cached, list):
+    if cached is not None and isinstance(cached, list) and len(cached) > 0:
         return cached
 
     results: List[Dict[str, Any]] = []
     seen = set()
 
-    # 1. Search existing approved parking locations in database
+    def add_result(res_id: str, name: str, address: str, lat: float, lng: float, cat: str):
+        key = (round(lat, 3), round(lng, 3))
+        if key not in seen and len(results) < 8:
+            seen.add(key)
+            results.append({
+                "id": res_id,
+                "name": name,
+                "address": address,
+                "lat": round(lat, 5),
+                "lng": round(lng, 5),
+                "category": cat,
+            })
+
+    # 1. Approved parking locations in database
     like_pat = f"%{clean}%"
     db_locs = await fetch_all(
         """
@@ -105,81 +211,76 @@ async def get_location_suggestions(query: str) -> List[Dict[str, Any]]:
         FROM parking_locations
         WHERE status = 'APPROVED'
           AND (name LIKE %s OR address LIKE %s)
-        LIMIT 5
+        LIMIT 4
         """,
         (like_pat, like_pat),
     )
     for loc in db_locs:
-        key = (round(float(loc["lat"]), 4), round(float(loc["lng"]), 4))
-        if key not in seen:
-            seen.add(key)
-            results.append({
-                "id": f"loc-{loc['id']}",
-                "name": loc["name"],
-                "address": loc["address"],
-                "lat": float(loc["lat"]),
-                "lng": float(loc["lng"]),
-                "category": "parking",
-            })
+        add_result(
+            f"loc-{loc['id']}",
+            loc["name"],
+            loc["address"],
+            float(loc["lat"]),
+            float(loc["lng"]),
+            "parking",
+        )
 
     # 2. Match known areas and landmarks
     q_lower = clean.lower()
-    for item in KNOWN_LANDMARKS:
+    for item in KNOWN_LOCATIONS:
         if q_lower in item["name"].lower() or q_lower in item["address"].lower():
-            key = (round(item["lat"], 4), round(item["lng"], 4))
-            if key not in seen:
-                seen.add(key)
-                results.append({
-                    "id": f"lm-{item['name'].lower().replace(' ', '-')}",
-                    "name": item["name"],
-                    "address": item["address"],
-                    "lat": item["lat"],
-                    "lng": item["lng"],
-                    "category": item["category"],
-                })
+            add_result(
+                f"reg-{item['name'].lower().replace(' ', '-')}",
+                item["name"],
+                item["address"],
+                item["lat"],
+                item["lng"],
+                item["category"],
+            )
 
-    # 3. If fewer than 5 results, search OpenStreetMap Nominatim
+    # 3. If fewer than 5 results, query Photon Geocoder
     if len(results) < 5:
-        url = "https://nominatim.openstreetmap.org/search"
-        headers = {"User-Agent": "SmartParkingApp/1.0 (admin@smartparking.local)"}
-        params = {
-            "q": clean,
-            "format": "json",
-            "limit": 5,
-            "addressdetails": 1,
-        }
         try:
+            url = f"https://photon.komoot.io/api/?q={clean}&limit=6"
             async with httpx.AsyncClient(timeout=3.0) as client:
-                resp = await client.get(url, params=params, headers=headers)
+                resp = await client.get(url, headers={"User-Agent": "SmartParking/1.0"})
                 if resp.status_code == 200:
-                    for item in resp.json():
-                        lat = float(item["lat"])
-                        lng = float(item["lon"])
-                        key = (round(lat, 4), round(lng, 4))
-                        if key not in seen:
-                            seen.add(key)
-                            name = item.get("name") or item.get("display_name", "").split(",")[0]
-                            results.append({
-                                "id": f"osm-{item.get('place_id', str(len(results)))}",
-                                "name": name,
-                                "address": item.get("display_name", ""),
-                                "lat": lat,
-                                "lng": lng,
-                                "category": "area",
-                            })
+                    data = resp.json()
+                    for feat in data.get("features", []):
+                        coords = feat["geometry"]["coordinates"]
+                        props = feat["properties"]
+                        p_name = props.get("name") or clean.title()
+                        city = props.get("city") or props.get("district") or props.get("state") or ""
+                        country = props.get("country", "")
+                        addr_parts = [p_name]
+                        if city and city != p_name:
+                            addr_parts.append(city)
+                        if country:
+                            addr_parts.append(country)
+                        full_addr = ", ".join(addr_parts)
+                        add_result(
+                            f"osm-{props.get('osm_id', len(results))}",
+                            p_name,
+                            full_addr,
+                            float(coords[1]),
+                            float(coords[0]),
+                            "area",
+                        )
         except Exception as e:
-            logger.debug(f"Nominatim suggestion search error: {e}")
+            logger.debug(f"Photon suggestion query failed: {e}")
 
-    await set_cache(cache_key, results, 3600)
+    if results:
+        await set_cache(cache_key, results, 3600)
     return results
 
+# ── Reverse Geocoding (DB Proximity -> Photon -> Nominatim) ───────────────────
 async def reverse_geocode_coords(lat: float, lng: float) -> Dict[str, Any]:
     cache_key = f"revgeo:{round(lat, 4)}:{round(lng, 4)}"
     cached = await get_cache(cache_key)
     if cached and isinstance(cached, dict):
         return cached
 
-    # 1. Check if close to an existing approved parking location in DB
+    # 1. Check if close to an approved parking station
     db_locs = await fetch_all(
         "SELECT id, name, address, lat, lng FROM parking_locations WHERE status = 'APPROVED'"
     )
@@ -191,7 +292,7 @@ async def reverse_geocode_coords(lat: float, lng: float) -> Dict[str, Any]:
             min_dist = dist
             closest_loc = loc
 
-    if closest_loc and min_dist <= 250:
+    if closest_loc and min_dist <= 200:
         result = {
             "display_name": closest_loc["name"],
             "area": closest_loc["address"],
@@ -201,18 +302,42 @@ async def reverse_geocode_coords(lat: float, lng: float) -> Dict[str, Any]:
         await set_cache(cache_key, result, 86400)
         return result
 
-    # 2. Try Nominatim reverse geocode
-    url = "https://nominatim.openstreetmap.org/reverse"
-    headers = {"User-Agent": "SmartParkingApp/1.0 (admin@smartparking.local)"}
-    params = {"lat": lat, "lon": lng, "format": "json"}
+    # 2. Try Photon reverse geocoding
     try:
+        photon_url = f"https://photon.komoot.io/reverse?lat={lat}&lon={lng}"
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            resp = await client.get(photon_url, headers={"User-Agent": "SmartParking/1.0"})
+            if resp.status_code == 200:
+                data = resp.json()
+                feats = data.get("features", [])
+                if feats:
+                    props = feats[0]["properties"]
+                    name = props.get("name") or props.get("street") or "Selected Location"
+                    city = props.get("city") or props.get("district") or props.get("state") or ""
+                    full = f"{name}, {city}" if (city and city != name) else name
+                    result = {
+                        "display_name": name,
+                        "area": full,
+                        "lat": lat,
+                        "lng": lng,
+                    }
+                    await set_cache(cache_key, result, 86400)
+                    return result
+    except Exception as e:
+        logger.debug(f"Photon reverse geocode error: {e}")
+
+    # 3. Try Nominatim reverse geocode
+    try:
+        url = "https://nominatim.openstreetmap.org/reverse"
+        headers = {"User-Agent": "SmartParkingApp/1.0 (admin@smartparking.local)"}
+        params = {"lat": lat, "lon": lng, "format": "json"}
         async with httpx.AsyncClient(timeout=3.0) as client:
             resp = await client.get(url, params=params, headers=headers)
             if resp.status_code == 200:
                 data = resp.json()
                 addr = data.get("address", {})
                 road = addr.get("road") or addr.get("suburb") or addr.get("neighbourhood") or ""
-                city = addr.get("city") or addr.get("town") or addr.get("village") or addr.get("state_district") or addr.get("state") or ""
+                city = addr.get("city") or addr.get("town") or addr.get("village") or addr.get("state_district") or ""
                 name = road or data.get("name") or "Selected Location"
                 full_display = f"{name}, {city}" if (road and city) else (data.get("display_name", "Selected Location"))
                 result = {
@@ -226,10 +351,10 @@ async def reverse_geocode_coords(lat: float, lng: float) -> Dict[str, Any]:
     except Exception as e:
         logger.debug(f"Nominatim reverse geocode error: {e}")
 
-    # 3. Fallback to nearest known landmark
+    # 4. Fallback to nearest registry location
     nearest_landmark = None
     nearest_d = float("inf")
-    for lm in KNOWN_LANDMARKS:
+    for lm in KNOWN_LOCATIONS:
         d = haversine_distance_m(lat, lng, lm["lat"], lm["lng"])
         if d < nearest_d:
             nearest_d = d
@@ -237,9 +362,9 @@ async def reverse_geocode_coords(lat: float, lng: float) -> Dict[str, Any]:
 
     if nearest_landmark and nearest_d < 5000:
         label = f"Near {nearest_landmark['name']}"
-        area = f"{nearest_landmark['name']}, Hyderabad"
+        area = nearest_landmark["address"]
     else:
-        label = f"Pinned Location ({lat:.4f}, {lng:.4f})"
+        label = f"Location ({lat:.4f}, {lng:.4f})"
         area = f"Coordinates: {lat:.4f}, {lng:.4f}"
 
     result = {
@@ -251,144 +376,7 @@ async def reverse_geocode_coords(lat: float, lng: float) -> Dict[str, Any]:
     await set_cache(cache_key, result, 86400)
     return result
 
-def get_offset_coords(lat: float, lng: float, dist_m: float, bearing_deg: float) -> Tuple[float, float]:
-    """Calculates latitude and longitude offset by distance in meters and bearing in degrees."""
-    R = 6371000.0
-    d = dist_m / R
-    b = math.radians(bearing_deg)
-    lat_r = math.radians(lat)
-    lng_r = math.radians(lng)
-
-    new_lat_r = math.asin(
-        math.sin(lat_r) * math.cos(d) + math.cos(lat_r) * math.sin(d) * math.cos(b)
-    )
-    new_lng_r = lng_r + math.atan2(
-        math.sin(b) * math.sin(d) * math.cos(lat_r),
-        math.cos(d) - math.sin(lat_r) * math.sin(new_lat_r),
-    )
-
-    return round(math.degrees(new_lat_r), 5), round(math.degrees(new_lng_r), 5)
-
-async def ensure_locations_near_destination(
-    target_lat: float, target_lng: float, place_name: Optional[str] = None
-):
-    """
-    Guarantees that parking spaces exist within 5km of any selected destination.
-    If fewer than 2 parking facilities exist in the database within 5km,
-    dynamically provisions realistic approved parking locations and slots around the coordinates.
-    """
-    existing = await fetch_all(
-        "SELECT id, lat, lng FROM parking_locations WHERE status = 'APPROVED'"
-    )
-    nearby_count = sum(
-        1
-        for loc in existing
-        if haversine_distance_m(target_lat, target_lng, float(loc["lat"]), float(loc["lng"])) <= 5000
-    )
-
-    if nearby_count >= 2:
-        return
-
-    # Derive area name for realistic labeling
-    area_name = "Area"
-    if place_name and place_name.strip():
-        first_part = place_name.split(",")[0].strip()
-        area_name = first_part.title() if first_part else "Local Area"
-    else:
-        try:
-            rev = await reverse_geocode_coords(target_lat, target_lng)
-            area_name = rev.get("display_name", "Local Area").split(",")[0].strip().title()
-        except Exception:
-            area_name = f"Zone ({target_lat:.3f}, {target_lng:.3f})"
-
-    # Generate 4 distinct parking locations strictly within 400m to 3.2km (all < 5km)
-    templates = [
-        {
-            "name": f"{area_name} Central Multi-Level Parking",
-            "dist": 450,
-            "bearing": 45,
-            "rate": 4000,
-            "facilities": ["ev_charging", "covered", "cctv", "valet", "disabled_access"],
-        },
-        {
-            "name": f"{area_name} Metro Express Lot",
-            "dist": 880,
-            "bearing": 160,
-            "rate": 3000,
-            "facilities": ["cctv", "covered", "disabled_access"],
-        },
-        {
-            "name": f"{area_name} Commercial Plaza AutoPark",
-            "dist": 1650,
-            "bearing": 250,
-            "rate": 3500,
-            "facilities": ["ev_charging", "covered", "cctv", "valet"],
-        },
-        {
-            "name": f"{area_name} Transit Hub Deck",
-            "dist": 2850,
-            "bearing": 330,
-            "rate": 2500,
-            "facilities": ["covered", "cctv", "disabled_access"],
-        },
-    ]
-
-    for t in templates:
-        o_lat, o_lng = get_offset_coords(target_lat, target_lng, t["dist"], t["bearing"])
-        hours_json = json.dumps({"all": {"open": "00:00", "close": "23:59"}})
-        facs_json = json.dumps(t["facilities"])
-        pt_wkt = f"POINT({o_lng} {o_lat})"
-
-        loc_id, _ = await execute(
-            """
-            INSERT INTO parking_locations
-                (owner_id, name, address, lat, lng, location_point, operating_hours, facilities,
-                 base_rate_paise, min_rate_paise, max_rate_paise, rate_update_interval_min,
-                 pay_at_venue, status, total_slots)
-            VALUES (%s, %s, %s, %s, %s, ST_GeomFromText(%s, 4326), %s, %s, %s, %s, %s, %s, %s, 'APPROVED', %s)
-            """,
-            (
-                2,  # seeded operator
-                t["name"],
-                f"Near {area_name}, Destination Proximity ({round(t['dist']/1000, 1)} km)",
-                o_lat,
-                o_lng,
-                pt_wkt,
-                hours_json,
-                facs_json,
-                t["rate"],
-                t["rate"],
-                t["rate"] * 2,
-                60,
-                0,
-                11,
-            ),
-        )
-
-        if loc_id:
-            # Seed active slots
-            slot_tuples = [
-                (loc_id, "A01", "CAR", None, "ACTIVE"),
-                (loc_id, "A02", "CAR", None, "ACTIVE"),
-                (loc_id, "A03", "CAR", None, "ACTIVE"),
-                (loc_id, "A04", "CAR", None, "ACTIVE"),
-                (loc_id, "S01", "SUV", None, "ACTIVE"),
-                (loc_id, "S02", "SUV", None, "ACTIVE"),
-                (loc_id, "M01", "MOTORCYCLE", None, "ACTIVE"),
-                (loc_id, "M02", "MOTORCYCLE", None, "ACTIVE"),
-                (loc_id, "M03", "MOTORCYCLE", None, "ACTIVE"),
-                (loc_id, "E01", "EV", json.dumps({"has_charger": True}), "ACTIVE"),
-                (loc_id, "E02", "EV", json.dumps({"has_charger": True}), "ACTIVE"),
-            ]
-            await execute_many(
-                """
-                INSERT INTO parking_slots (location_id, code, vehicle_type, restrictions, status)
-                VALUES (%s, %s, %s, %s, %s)
-                """,
-                slot_tuples,
-            )
-
-# ── Main Parking Search ───────────────────────────────────────────────────────
+# ── Main Deterministic Parking Search ─────────────────────────────────────────
 async def search_parking(
     user_preferences: Dict[str, Any],
     lat: Optional[float] = None,
@@ -406,30 +394,14 @@ async def search_parking(
     # 1. Resolve coordinates
     target_lat = lat
     target_lng = lng
-    resolved_place_name = place_name or ""
+    resolved_place_name = (place_name or "").strip()
 
-    if (target_lat is None or target_lng is None) and place_name:
-        coords = await geocode_place_name(place_name)
+    if (target_lat is None or target_lng is None) and resolved_place_name:
+        coords = await geocode_place_name(resolved_place_name)
         if coords:
             target_lat, target_lng = coords
 
-    if target_lat is None or target_lng is None:
-        target_lat, target_lng = 17.4435, 78.3772  # default
-        if not resolved_place_name:
-            resolved_place_name = "Hitech City, Hyderabad"
-
-    # Auto-reverse geocode if no place_name was provided
-    if not resolved_place_name:
-        try:
-            rev = await reverse_geocode_coords(target_lat, target_lng)
-            resolved_place_name = rev.get("display_name", f"Location ({target_lat:.3f}, {target_lng:.3f})")
-        except Exception:
-            resolved_place_name = f"Location ({target_lat:.3f}, {target_lng:.3f})"
-
-    # Ensure approved parking facilities exist within 5km of target destination
-    await ensure_locations_near_destination(target_lat, target_lng, place_name=resolved_place_name)
-
-    # 2. Parse time window into UTC
+    # Parse time window
     start_at, end_at = parse_time_window(
         date_text=date_text,
         start_time_text=start_time_text,
@@ -437,10 +409,37 @@ async def search_parking(
         end_time_text=end_time_text,
     )
 
+    # If coordinates could not be resolved from place_name
+    if target_lat is None or target_lng is None:
+        if resolved_place_name:
+            return {
+                "locations": [],
+                "total_locations": 0,
+                "ranking_type": "none",
+                "start_at": start_at,
+                "end_at": end_at,
+                "target_lat": None,
+                "target_lng": None,
+                "place_name": resolved_place_name,
+                "message": f"Could not find coordinates for '{resolved_place_name}'. Please select from suggestions or click a point on the map.",
+            }
+        else:
+            # Default to Hitech City, Hyderabad if completely blank
+            target_lat, target_lng = 17.4435, 78.3772
+            resolved_place_name = "Hitech City, Hyderabad"
+
+    # Auto-reverse geocode display name if missing
+    if not resolved_place_name:
+        try:
+            rev = await reverse_geocode_coords(target_lat, target_lng)
+            resolved_place_name = rev.get("display_name", f"Location ({target_lat:.3f}, {target_lng:.3f})")
+        except Exception:
+            resolved_place_name = f"Location ({target_lat:.3f}, {target_lng:.3f})"
+
     veh_type = vehicle_type or user_preferences.get("default_vehicle_type") or "CAR"
     required_facilities = set(facilities or [])
 
-    # 3. Query approved locations
+    # 2. Query all approved parking locations
     locations = await fetch_all(
         """
         SELECT id, owner_id, name, address, lat, lng, operating_hours,
@@ -451,19 +450,25 @@ async def search_parking(
         """
     )
 
-    # 4. Filter locations and compute availability for time window
+    # 3. Filter locations within strictly 5 km (5000 meters)
+    search_radius_m = max_distance_m or 5000
     candidate_slots = []
     location_results = {}
 
     blocks = generate_blocks(start_at, end_at, settings.BOOKING_GRANULARITY_MINUTES)
     block_placeholders = ",".join(["%s"] * len(blocks))
 
-    # Radius strictly default to 5 km (5000 meters) around destination
-    search_radius_m = max_distance_m or 5000
+    # Keep track of nearest overall location in database for helpful feedback
+    nearest_loc_overall = None
+    min_dist_overall = float("inf")
 
     for loc in locations:
         loc_id = loc["id"]
         dist = haversine_distance_m(target_lat, target_lng, float(loc["lat"]), float(loc["lng"]))
+
+        if dist < min_dist_overall:
+            min_dist_overall = dist
+            nearest_loc_overall = loc
 
         # Strictly show parking spaces within 5 km of destination
         if dist > search_radius_m:
@@ -508,7 +513,7 @@ async def search_parking(
         # Pick up to 3 candidate slots per location to quote and rank
         for slot in available_slots[:3]:
             quote = await calculate_quote_for_slot(slot["id"], start_at, end_at)
-            
+
             if max_budget_paise and quote["total_paise"] > max_budget_paise:
                 continue
 
@@ -525,7 +530,20 @@ async def search_parking(
                 "availability_confidence": 1.0,
             })
 
+    # If no parking stations found within 5 km: Return 0 locations honestly (NO FAKE PARKINGS)
     if not candidate_slots:
+        nearest_info = None
+        if nearest_loc_overall:
+            nearest_info = {
+                "id": nearest_loc_overall["id"],
+                "name": nearest_loc_overall["name"],
+                "address": nearest_loc_overall["address"],
+                "distance_m": round(min_dist_overall, 1),
+                "distance_km": round(min_dist_overall / 1000, 1),
+                "lat": float(nearest_loc_overall["lat"]),
+                "lng": float(nearest_loc_overall["lng"]),
+            }
+
         return {
             "locations": [],
             "total_locations": 0,
@@ -535,9 +553,11 @@ async def search_parking(
             "target_lat": target_lat,
             "target_lng": target_lng,
             "place_name": resolved_place_name,
+            "nearest_location": nearest_info,
+            "message": f"No parking stations found within 5 km of {resolved_place_name}.",
         }
 
-    # 5. Score candidates with AI ranker or fallback to basic sorting
+    # 4. Score candidates with AI ranker or fallback to basic sorting
     ranking_type = "basic"
     scored_candidates = []
 
@@ -573,7 +593,7 @@ async def search_parking(
             })
         scored_candidates.sort(key=lambda x: (x["distance_m"], x["total_price_paise"]))
 
-    # 6. Group back into location results
+    # 5. Group back into location results
     for sc in scored_candidates:
         loc_id = sc["location_id"]
         if loc_id in location_results:
@@ -587,7 +607,7 @@ async def search_parking(
                 "reason_tags": sc["reason_tags"],
             })
 
-    # Sort locations by their best slot score / distance
+    # Sort locations by best slot score
     res_list = [v for v in location_results.values() if v["slots"]]
     res_list.sort(key=lambda l: l["slots"][0]["score"] if ranking_type == "weighted" else l["distance_m"],
                   reverse=(ranking_type == "weighted"))
@@ -601,4 +621,5 @@ async def search_parking(
         "target_lat": target_lat,
         "target_lng": target_lng,
         "place_name": resolved_place_name,
+        "nearest_location": None,
     }
