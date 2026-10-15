@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getBooking, cancelBooking, createPaymentOrder, verifyPayment } from '../../api/bookings';
+import { getBooking, cancelBooking, createPaymentOrder, verifyPayment } from '../api/bookings';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { Countdown } from '../components/common/Countdown';
-import { LoadingSpinner } from '../common/LoadingSpinner';
-import { formatCurrency, formatDateTime } from '../../utils/formatters';
-import { BOOKING_STATUS_COLORS } from '../../utils/constants';
-import { useAuth } from '../../context/AuthContext';
+import { LoadingSpinner } from '../components/common/LoadingSpinner';
+import { formatCurrency, formatDateTime } from '../utils/formatters';
+import { BOOKING_STATUS_COLORS } from '../utils/constants';
+import { useAuth } from '../context/AuthContext';
 import { FiMapPin, FiCalendar, FiClock, FiShield, FiAlertTriangle, FiCheckCircle } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 

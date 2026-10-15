@@ -4,8 +4,8 @@ import { SearchForm } from '../components/search/SearchForm';
 import { LocationCard } from '../components/search/LocationCard';
 import { MapView } from '../components/search/MapView';
 import { BookingModal } from '../components/booking/BookingModal';
-import { searchParking } from '../../api/search';
-import { LoadingSpinner } from '../common/LoadingSpinner';
+import { searchParking } from '../api/search';
+import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { FiList, FiMap, FiAlertCircle } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 

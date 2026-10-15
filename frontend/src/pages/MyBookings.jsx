@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getBookings } from '../../api/bookings';
+import { getBookings } from '../api/bookings';
 import { Card } from '../components/common/Card';
 import { Badge } from '../components/common/Badge';
 import { Countdown } from '../components/common/Countdown';
-import { LoadingSpinner } from '../common/LoadingSpinner';
-import { formatCurrency, formatDateTime } from '../../utils/formatters';
-import { BOOKING_STATUS_COLORS } from '../../utils/constants';
+import { LoadingSpinner } from '../components/common/LoadingSpinner';
+import { formatCurrency, formatDateTime } from '../utils/formatters';
+import { BOOKING_STATUS_COLORS } from '../utils/constants';
 import { FiCalendar, FiClock, FiMapPin, FiChevronRight } from 'react-icons/fi';
 
 export const MyBookings = () => {

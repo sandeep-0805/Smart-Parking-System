@@ -5,13 +5,13 @@ import {
   updateAutoBookingRule,
   deleteAutoBookingRule,
   getAutoBookingAudit,
-} from '../../api/autoBooking';
+} from '../api/autoBooking';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { Input } from '../components/common/Input';
-import { LoadingSpinner } from '../common/LoadingSpinner';
-import { formatCurrency, formatDateTime } from '../../utils/formatters';
-import { VEHICLE_TYPES } from '../../utils/constants';
+import { LoadingSpinner } from '../components/common/LoadingSpinner';
+import { formatCurrency, formatDateTime } from '../utils/formatters';
+import { VEHICLE_TYPES } from '../utils/constants';
 import toast from 'react-hot-toast';
 import { FiPlus, FiTrash2, FiClock, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
 

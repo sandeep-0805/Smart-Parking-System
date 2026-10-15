@@ -33,7 +33,7 @@ def get_redis() -> redis.Redis:
 
 async def set_cache(key: str, value: Any, ttl_seconds: Optional[int] = None):
     r = get_redis()
-    serialized = json.dumps(value) if not isinstance(value, str) else value
+    serialized = json.dumps(value, default=str) if not isinstance(value, str) else value
     if ttl_seconds:
         await r.setex(key, ttl_seconds, serialized)
     else:

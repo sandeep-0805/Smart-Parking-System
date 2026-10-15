@@ -1,7 +1,7 @@
 import json
 import logging
 import uuid
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 from app.config import settings
 from app.redis_client import get_cache, set_cache
 from app.services.ai_client import ai_client
