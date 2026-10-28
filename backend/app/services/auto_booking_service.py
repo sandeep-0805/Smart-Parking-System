@@ -56,7 +56,33 @@ async def evaluate_auto_booking_rules():
 
             # 3. Check target time window
             start_time_str = cfg.get("start_time", "09:00")
-            target_start = now_kolkata + timedelta(minutes=lead_mins)
+            try:
+                time_parts = str(start_time_str).split(":")
+                rule_hour = int(time_parts[0])
+                rule_min = int(time_parts[1]) if len(time_parts) > 1 else 0
+                target_dt = now_kolkata.replace(hour=rule_hour, minute=rule_min, second=0, microsecond=0)
+            except Exception:
+                logger.warning(f"Invalid start_time format in rule {rule_id}: {start_time_str}")
+                continue
+
+            trigger_dt = target_dt - timedelta(minutes=lead_mins)
+            # Only trigger when current time is between trigger_dt and target_dt
+            if now_kolkata < trigger_dt or now_kolkata > target_dt:
+                continue
+
+            # Check if rule already executed a booking today
+            already_booked = await fetch_one(
+                """
+                SELECT b.id FROM bookings b
+                JOIN auto_booking_audit a ON a.booking_id = b.id
+                WHERE a.rule_id = %s
+                  AND DATE(CONVERT_TZ(b.start_at, '+00:00', '+05:30')) = DATE(%s)
+                  AND b.status IN ('PENDING_PAYMENT', 'CONFIRMED')
+                """,
+                (rule_id, now_kolkata.strftime('%Y-%m-%d %H:%M:%S')),
+            )
+            if already_booked:
+                continue
             
             # Run search for candidate
             search_res = await search_parking(
@@ -83,6 +109,15 @@ async def evaluate_auto_booking_rules():
 
             # Select top ranked slot
             best_loc = locations[0]
+            if not best_loc.get("slots"):
+                await log_auto_booking_audit(
+                    rule_id=rule_id,
+                    user_id=user_id,
+                    decision="NO_CANDIDATES",
+                    decision_reason="No available slots in nearest locations",
+                    rule_snapshot=cfg,
+                )
+                continue
             best_slot = best_loc["slots"][0]
 
             # Price check

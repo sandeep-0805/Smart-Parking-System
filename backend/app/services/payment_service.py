@@ -47,6 +47,20 @@ async def create_payment_order(booking_id: int, user_id: int) -> Dict[str, Any]:
             "booking_id": booking_id,
         }
 
+    # Check if an existing active order already exists for this booking
+    existing_payment = await fetch_one(
+        "SELECT id, razorpay_order_id FROM payments WHERE booking_id = %s AND status = 'CREATED' ORDER BY id DESC LIMIT 1",
+        (booking_id,),
+    )
+    if existing_payment and existing_payment.get("razorpay_order_id"):
+        return {
+            "razorpay_order_id": existing_payment["razorpay_order_id"],
+            "amount_paise": amount_paise,
+            "currency": "INR",
+            "key_id": settings.RAZORPAY_KEY_ID,
+            "booking_id": booking_id,
+        }
+
     # Create order via Razorpay SDK (or mock order id if in placeholder mode)
     try:
         rzp_order = razorpay_client.order.create({
@@ -104,7 +118,7 @@ async def verify_payment_callback(
     sig_valid = hmac.compare_digest(generated_sig, signature)
     
     # Allow mock verification in local dev/demo mode
-    if not sig_valid and not (order_id.startswith("order_mock_") or signature.startswith("sig_mock_")):
+    if not sig_valid and not (order_id.startswith("order_mock_") or signature.startswith("sig_mock_") or payment_id.startswith(("mock_", "pay_mock_"))):
         raise PaymentVerificationError("Invalid Razorpay payment signature")
 
     # Guarded update: UPDATE bookings SET status='CONFIRMED' WHERE id=? AND status='PENDING_PAYMENT'
@@ -131,8 +145,29 @@ async def verify_payment_callback(
     if affected > 0:
         logger.info(f"Booking {booking_id} successfully CONFIRMED after verified payment {payment_id}.")
         await send_booking_confirmed_notification(booking_id)
+        return await get_booking_details(booking_id)
 
-    return await get_booking_details(booking_id)
+    # If affected == 0, hold expired or was cancelled before payment verified
+    b_curr = await fetch_one("SELECT status FROM bookings WHERE id = %s", (booking_id,))
+    curr_status = b_curr["status"] if b_curr else "UNKNOWN"
+    logger.warning(f"Payment verified for booking {booking_id}, but status is {curr_status}. Initiating refund.")
+
+    refund_amount = payment.get("amount_paise") or 0
+    if not payment_id.startswith(("mock_", "pay_mock_")):
+        try:
+            razorpay_client.payment.refund(payment_id, {"amount": refund_amount})
+        except Exception as e:
+            logger.error(f"Refund API error on expired hold: {e}")
+
+    await execute(
+        "UPDATE payments SET status = 'REFUNDED', refund_amount_paise = %s, updated_at = NOW() WHERE id = %s",
+        (refund_amount, payment["id"]),
+    )
+    raise AppException(
+        409,
+        "HOLD_EXPIRED_REFUNDED",
+        "Your reservation hold expired before payment was verified. A full refund has been initiated.",
+    )
 
 async def process_razorpay_webhook(raw_body: bytes, webhook_signature: str) -> Dict[str, Any]:
     # 1. Verify webhook HMAC-SHA256 signature
@@ -203,7 +238,7 @@ async def process_cancellation_refund(booking_id: int, refund_pct: float):
 
     refund_status = "REFUNDED" if refund_pct >= 0.99 else "PARTIALLY_REFUNDED"
     try:
-        if payment["razorpay_payment_id"] and not payment["razorpay_payment_id"].startswith("mock_"):
+        if payment["razorpay_payment_id"] and not payment["razorpay_payment_id"].startswith(("mock_", "pay_mock_")):
             razorpay_client.payment.refund(
                 payment["razorpay_payment_id"],
                 {"amount": refund_amount, "notes": {"booking_id": booking_id}},

@@ -65,9 +65,9 @@ export const OperatorDashboard = () => {
               Manage Locations
             </Button>
           </Link>
-          <Link to="/operator/locations/new">
+          <Link to="/operator/locations">
             <Button variant="primary" size="sm">
-              <FiPlus className="mr-1.5" /> Add Location
+              <FiPlus className="mr-1.5" /> Manage / Add Location
             </Button>
           </Link>
         </div>

@@ -67,12 +67,13 @@ async def register_user(req: RegisterRequest) -> UserResponse:
     hashed = hash_password(req.password)
     
     async with transaction() as conn:
+        phone_val = req.phone.strip() if req.phone and req.phone.strip() else None
         last_id, _ = await execute(
             """
             INSERT INTO users (email, password_hash, full_name, phone, role, status, email_verified)
             VALUES (%s, %s, %s, %s, 'DRIVER', 'ACTIVE', 0)
             """,
-            (req.email.lower(), hashed, req.full_name, req.phone),
+            (req.email.lower(), hashed, req.full_name, phone_val),
             conn=conn,
         )
         # Create default preferences
@@ -168,6 +169,12 @@ async def get_user_profile(user_id: int) -> Dict[str, Any]:
     if not user_row:
         raise AppException(404, "USER_NOT_FOUND", "User profile not found")
     pref_row = await fetch_one("SELECT * FROM preferences WHERE user_id = %s", (user_id,))
+    if pref_row:
+        if isinstance(pref_row.get("preferred_facilities"), str):
+            try:
+                pref_row["preferred_facilities"] = json.loads(pref_row["preferred_facilities"])
+            except Exception:
+                pref_row["preferred_facilities"] = []
     
     return {
         "user": user_row,

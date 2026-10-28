@@ -19,8 +19,19 @@ KNOWN_LOCATIONS = [
     # Telangana / Hyderabad
     {"name": "Hitech City", "address": "Cyberabad, Madhapur, Hyderabad, Telangana", "lat": 17.4435, "lng": 78.3772, "category": "area"},
     {"name": "Cyber Towers", "address": "Hitech City Main Rd, Madhapur, Hyderabad", "lat": 17.4504, "lng": 78.3808, "category": "landmark"},
+    {"name": "Inorbit Mall Cyberabad", "address": "Mindspace, Madhapur, Hyderabad, Telangana", "lat": 17.4344, "lng": 78.3866, "category": "landmark"},
     {"name": "Inorbit Mall", "address": "Mindspace, Madhapur, Hyderabad, Telangana", "lat": 17.4344, "lng": 78.3866, "category": "landmark"},
+    {"name": "Sarath City Capital Mall", "address": "Gachibowli - Miyapur Rd, Whitefields, Kondapur, Hyderabad", "lat": 17.4578, "lng": 78.3638, "category": "landmark"},
+    {"name": "Nexus Hyderabad Mall", "address": "Sujana Forum Mall, KPHB Phase 9, Kukatpally, Hyderabad", "lat": 17.4849, "lng": 78.3905, "category": "landmark"},
+    {"name": "Forum Sujana Mall", "address": "KPHB Colony, Kukatpally, Hyderabad", "lat": 17.4849, "lng": 78.3905, "category": "landmark"},
+    {"name": "GVK One Mall", "address": "Road No 1, Banjara Hills, Hyderabad", "lat": 17.4194, "lng": 78.4484, "category": "landmark"},
+    {"name": "Lulu Mall Hyderabad", "address": "KPHB Colony, Kukatpally, Hyderabad", "lat": 17.4930, "lng": 78.3912, "category": "landmark"},
+    {"name": "Next Galleria Mall Punjagutta", "address": "Punjagutta Circle, Hyderabad", "lat": 17.4265, "lng": 78.4515, "category": "landmark"},
     {"name": "IKEA Hyderabad", "address": "Raidurg, Hitech City, Hyderabad", "lat": 17.4375, "lng": 78.3756, "category": "landmark"},
+    {"name": "DLF Cybercity", "address": "Gachibowli, Hyderabad, Telangana", "lat": 17.4475, "lng": 78.3585, "category": "landmark"},
+    {"name": "Mindspace Madhapur", "address": "IT Corridor, Madhapur, Hyderabad", "lat": 17.4380, "lng": 78.3815, "category": "area"},
+    {"name": "Raidurg Metro Station", "address": "Mindspace Junction, Raidurg, Hyderabad", "lat": 17.4382, "lng": 78.3768, "category": "landmark"},
+    {"name": "Hitec City Metro Station", "address": "Hitec City Rd, Cyber Towers, Madhapur, Hyderabad", "lat": 17.4473, "lng": 78.3831, "category": "landmark"},
     {"name": "Gachibowli", "address": "Financial District, Hyderabad, Telangana", "lat": 17.4401, "lng": 78.3489, "category": "area"},
     {"name": "Madhapur", "address": "IT Corridor, Hyderabad, Telangana", "lat": 17.4483, "lng": 78.3915, "category": "area"},
     {"name": "Jubilee Hills", "address": "Road No 36, Hyderabad, Telangana", "lat": 17.4319, "lng": 78.4073, "category": "area"},
@@ -42,6 +53,8 @@ KNOWN_LOCATIONS = [
     {"name": "Shamshabad RGIA Airport", "address": "Rajiv Gandhi International Airport, Hyderabad", "lat": 17.2403, "lng": 78.4294, "category": "landmark"},
 
     # Andhra Pradesh / Amaravati / Vijayawada
+    {"name": "PVP Square Mall", "address": "MG Road, Governor Peta, Vijayawada, Andhra Pradesh", "lat": 16.5058, "lng": 80.6480, "category": "landmark"},
+    {"name": "Trendset Mall", "address": "Benz Circle, MG Road, Vijayawada, Andhra Pradesh", "lat": 16.5003, "lng": 80.6508, "category": "landmark"},
     {"name": "Krishna Lanka", "address": "NH-16, Krishna Lanka, Vijayawada, Andhra Pradesh", "lat": 16.5050, "lng": 80.6270, "category": "area"},
     {"name": "VIT-AP University", "address": "Beside Inavolu, Amaravati, Andhra Pradesh 522237", "lat": 16.4965, "lng": 80.4992, "category": "landmark"},
     {"name": "SRM University AP", "address": "Neerukonda, Amaravati, Andhra Pradesh 522240", "lat": 16.4673, "lng": 80.5085, "category": "landmark"},
@@ -57,6 +70,11 @@ KNOWN_LOCATIONS = [
     {"name": "Tirupati", "address": "Tirupati, Andhra Pradesh", "lat": 13.6288, "lng": 79.4192, "category": "area"},
 
     # Karnataka / Bengaluru (Bangalore)
+    {"name": "Phoenix Marketcity Bangalore", "address": "Whitefield Main Rd, Mahadevapura, Bengaluru", "lat": 12.9959, "lng": 77.6964, "category": "landmark"},
+    {"name": "Nexus Koramangala", "address": "Hosur Rd, Koramangala, Bengaluru", "lat": 12.9352, "lng": 77.6138, "category": "landmark"},
+    {"name": "Forum Mall Koramangala", "address": "Hosur Rd, Koramangala, Bengaluru", "lat": 12.9352, "lng": 77.6138, "category": "landmark"},
+    {"name": "Orion Mall", "address": "Dr Rajkumar Rd, Malleshwaram, Bengaluru", "lat": 13.0112, "lng": 77.5549, "category": "landmark"},
+    {"name": "UB City", "address": "Vittal Mallya Rd, Ashok Nagar, Bengaluru", "lat": 12.9719, "lng": 77.5958, "category": "landmark"},
     {"name": "Koramangala", "address": "4th & 5th Block, Koramangala, Bengaluru, Karnataka", "lat": 12.9352, "lng": 77.6245, "category": "area"},
     {"name": "Indiranagar", "address": "100ft Rd, HAL 2nd Stage, Indiranagar, Bengaluru", "lat": 12.9719, "lng": 77.6412, "category": "area"},
     {"name": "MG Road Bangalore", "address": "Ashok Nagar, MG Road, Bengaluru, Karnataka", "lat": 12.9738, "lng": 77.6070, "category": "area"},
@@ -72,6 +90,10 @@ KNOWN_LOCATIONS = [
     {"name": "Bellandur", "address": "Outer Ring Rd, Bellandur, Bengaluru, Karnataka", "lat": 12.9304, "lng": 77.6784, "category": "area"},
 
     # Maharashtra / Mumbai & Pune
+    {"name": "Phoenix Palladium Mall", "address": "High Street Phoenix, Senapati Bapat Marg, Lower Parel, Mumbai", "lat": 18.9953, "lng": 72.8258, "category": "landmark"},
+    {"name": "Jio World Drive", "address": "Bandra Kurla Complex, Bandra East, Mumbai", "lat": 19.0657, "lng": 72.8687, "category": "landmark"},
+    {"name": "Inorbit Mall Malad", "address": "Link Rd, Malad West, Mumbai", "lat": 19.1728, "lng": 72.8359, "category": "landmark"},
+    {"name": "CR2 Mall Nariman Point", "address": "Barrister Rajni Patel Marg, Nariman Point, Mumbai", "lat": 18.9284, "lng": 72.8229, "category": "landmark"},
     {"name": "Nariman Point", "address": "Marine Drive, Nariman Point, Mumbai, Maharashtra", "lat": 18.9284, "lng": 72.8229, "category": "area"},
     {"name": "Marine Drive", "address": "Netaji Subhash Chandra Bose Rd, Mumbai, Maharashtra", "lat": 18.9432, "lng": 72.8235, "category": "area"},
     {"name": "Bandra Kurla Complex (BKC)", "address": "G Block, BKC, Bandra East, Mumbai, Maharashtra", "lat": 19.0657, "lng": 72.8687, "category": "area"},
@@ -85,10 +107,15 @@ KNOWN_LOCATIONS = [
     {"name": "FC Road Pune", "address": "Fergusson College Rd, Shivajinagar, Pune, Maharashtra", "lat": 18.5222, "lng": 73.8415, "category": "area"},
     {"name": "Koregaon Park Pune", "address": "North Main Rd, Koregaon Park, Pune, Maharashtra", "lat": 18.5362, "lng": 73.8940, "category": "area"},
     {"name": "Hinjewadi Pune", "address": "Rajiv Gandhi Infotech Park, Hinjewadi, Pune", "lat": 18.5913, "lng": 73.7389, "category": "area"},
+    {"name": "Phoenix Marketcity Pune", "address": "Viman Nagar, Pune, Maharashtra", "lat": 18.5620, "lng": 73.9168, "category": "landmark"},
     {"name": "Viman Nagar Pune", "address": "Phoenix Marketcity, Viman Nagar, Pune", "lat": 18.5679, "lng": 73.9143, "category": "area"},
 
     # Delhi / NCR
+    {"name": "Select CITYWALK", "address": "Saket District Centre, New Delhi", "lat": 28.5284, "lng": 77.2185, "category": "landmark"},
+    {"name": "DLF Mall of India", "address": "Sector 18, Noida, Uttar Pradesh", "lat": 28.5678, "lng": 77.3210, "category": "landmark"},
+    {"name": "Ambience Mall Gurgaon", "address": "NH-8, Gurugram, Haryana", "lat": 28.5042, "lng": 77.0967, "category": "landmark"},
     {"name": "Connaught Place", "address": "Inner Circle, Connaught Place, New Delhi, Delhi", "lat": 28.6315, "lng": 77.2167, "category": "area"},
+    {"name": "Palika Bazar", "address": "Inner Circle, Connaught Place, New Delhi", "lat": 28.6315, "lng": 77.2167, "category": "landmark"},
     {"name": "Cyber Hub Gurgaon", "address": "DLF Phase 2, Sector 24, Gurugram, Haryana", "lat": 28.4950, "lng": 77.0890, "category": "landmark"},
     {"name": "Khan Market", "address": "Rabindra Nagar, New Delhi, Delhi", "lat": 28.6003, "lng": 77.2270, "category": "area"},
     {"name": "Hauz Khas Village", "address": "Deer Park, Hauz Khas, New Delhi, Delhi", "lat": 28.5534, "lng": 77.1945, "category": "area"},
@@ -124,10 +151,16 @@ async def geocode_place_name(place_name: str) -> Optional[Tuple[float, float]]:
     if cached and isinstance(cached, dict) and "lat" in cached and "lng" in cached:
         return float(cached["lat"]), float(cached["lng"])
 
-    # 1. Match in local Indian Metro Registry
+    # 1. Match in local Indian Metro Registry (exact first, then specific substring)
     for item in KNOWN_LOCATIONS:
+        if clean_lower == item["name"].lower():
+            coords = (item["lat"], item["lng"])
+            await set_cache(cache_key, {"lat": coords[0], "lng": coords[1]}, 86400)
+            return coords
+
+    for item in sorted(KNOWN_LOCATIONS, key=lambda x: len(x["name"]), reverse=True):
         n_lower = item["name"].lower()
-        if clean_lower == n_lower or clean_lower in n_lower or n_lower in clean_lower:
+        if clean_lower in n_lower or n_lower in clean_lower:
             coords = (item["lat"], item["lng"])
             await set_cache(cache_key, {"lat": coords[0], "lng": coords[1]}, 86400)
             return coords
@@ -456,6 +489,18 @@ async def search_parking(
     location_results = {}
 
     blocks = generate_blocks(start_at, end_at, settings.BOOKING_GRANULARITY_MINUTES)
+    if not blocks:
+        return {
+            "locations": [],
+            "total_locations": 0,
+            "ranking_type": "none",
+            "start_at": start_at,
+            "end_at": end_at,
+            "target_lat": target_lat,
+            "target_lng": target_lng,
+            "place_name": resolved_place_name,
+            "message": "Invalid time window or zero duration.",
+        }
     block_placeholders = ",".join(["%s"] * len(blocks))
 
     # Keep track of nearest overall location in database for helpful feedback
@@ -607,10 +652,15 @@ async def search_parking(
                 "reason_tags": sc["reason_tags"],
             })
 
-    # Sort locations by best slot score
+    # Sort locations: Proximity to destination is primary; combine slot score and distance
     res_list = [v for v in location_results.values() if v["slots"]]
-    res_list.sort(key=lambda l: l["slots"][0]["score"] if ranking_type == "weighted" else l["distance_m"],
-                  reverse=(ranking_type == "weighted"))
+    def location_sort_key(loc):
+        best_slot_score = loc["slots"][0]["score"] if ranking_type == "weighted" else 1.0
+        # Distance penalty: each kilometer reduces rank score by 0.12 so closer venues rank higher
+        effective_score = best_slot_score - ((loc["distance_m"] / 1000.0) * 0.12)
+        return effective_score
+
+    res_list.sort(key=location_sort_key, reverse=True)
 
     return {
         "locations": res_list,

@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Tuple, List
 from app.config import settings
 from app.database import fetch_one, execute
-from app.exceptions import NotFoundError, QuoteExpiredError
+from app.exceptions import NotFoundError, QuoteExpiredError, AppException
 from app.utils import utc_now
 
 async def calculate_quote_for_slot(
@@ -11,10 +11,13 @@ async def calculate_quote_for_slot(
     start_at: datetime,
     end_at: datetime,
 ) -> Dict[str, Any]:
+    min_secs = settings.MIN_DURATION_MINUTES * 60
+    if end_at <= start_at or (end_at - start_at).total_seconds() < min_secs:
+        raise AppException(400, "INVALID_TIME_WINDOW", f"Booking duration must be at least {settings.MIN_DURATION_MINUTES} minutes")
     # Look up slot and its location rates
     slot_row = await fetch_one(
         """
-        SELECT s.id as slot_id, s.code as slot_code, s.location_id, s.status as slot_status,
+        SELECT s.id as slot_id, s.code as slot_code, s.location_id, s.vehicle_type, s.status as slot_status,
                l.name as location_name, l.base_rate_paise, l.min_rate_paise,
                l.max_rate_paise, l.total_slots
         FROM parking_slots s
@@ -28,6 +31,7 @@ async def calculate_quote_for_slot(
 
     location_id = slot_row["location_id"]
     total_slots = max(1, slot_row["total_slots"] or 1)
+    veh_type = slot_row.get("vehicle_type", "CAR")
 
     # 1. Compute current active occupancy ratio for location
     # Count distinct slots booked during this requested window
@@ -43,23 +47,35 @@ async def calculate_quote_for_slot(
     occupied_count = occ_row["occupied_count"] if occ_row else 0
     occupancy_pct = occupied_count / float(total_slots)
 
-    # 2. Band multiplier (FR-P1)
+    # 2. Vehicle-type and demand-based multipliers
     base_rate = slot_row["base_rate_paise"]
     min_rate = slot_row["min_rate_paise"]
     max_rate = slot_row["max_rate_paise"]
 
-    if occupancy_pct < 0.40:
-        multiplier = 1.0
-        band_name = "Standard Demand (<40%)"
-    elif occupancy_pct <= 0.75:
-        multiplier = 1.5
-        band_name = "Moderate Demand (40-75%)"
-    else:
-        multiplier = 2.25
-        band_name = "High Demand (>75%)"
+    # Vehicle type multiplier (e.g. 2-wheelers pay 40% of car rates)
+    VEHICLE_MULTIPLIERS = {
+        "MOTORCYCLE": 0.40,
+        "CAR": 1.00,
+        "SUV": 1.20,
+        "EV": 1.10,
+        "TRUCK": 1.50,
+    }
+    veh_mult = VEHICLE_MULTIPLIERS.get(veh_type, 1.00)
 
-    effective_hourly = int(round(base_rate * multiplier))
-    effective_hourly = max(min_rate, min(max_rate, effective_hourly))
+    if occupancy_pct < 0.50:
+        multiplier = 1.0
+        band_name = "Standard Demand (<50%)"
+    elif occupancy_pct <= 0.80:
+        multiplier = 1.15
+        band_name = "Moderate Demand (50-80%)"
+    else:
+        multiplier = 1.30
+        band_name = "High Demand (>80%)"
+
+    effective_hourly = int(round(base_rate * veh_mult * multiplier))
+    min_allowed = int(round(min_rate * veh_mult))
+    max_allowed = int(round(max_rate * veh_mult))
+    effective_hourly = max(min_allowed, min(max_allowed, effective_hourly))
 
     duration_mins = int((end_at - start_at).total_seconds() / 60)
     duration_hours = max(0.5, duration_mins / 60.0)
@@ -68,8 +84,9 @@ async def calculate_quote_for_slot(
 
     line_items = [
         {
-            "label": f"Base parking ({duration_hours:.1f} hrs @ ₹{effective_hourly / 100:.2f}/hr)",
+            "label": f"{veh_type.capitalize()} parking ({duration_hours:.1f} hrs @ ₹{effective_hourly / 100:.2f}/hr)",
             "amount_paise": total_paise,
+            "vehicle_type": veh_type,
             "band": band_name,
             "multiplier": multiplier,
         }

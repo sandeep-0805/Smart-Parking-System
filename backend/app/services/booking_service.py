@@ -182,7 +182,7 @@ async def get_booking_details(booking_id: int) -> Dict[str, Any]:
         FROM bookings b
         JOIN parking_slots s ON b.slot_id = s.id
         JOIN parking_locations l ON s.location_id = l.id
-        LEFT JOIN payments p ON p.booking_id = b.id
+        LEFT JOIN (SELECT booking_id, status FROM payments WHERE id IN (SELECT MAX(id) FROM payments GROUP BY booking_id)) p ON p.booking_id = b.id
         WHERE b.id = %s
         """,
         (booking_id,),

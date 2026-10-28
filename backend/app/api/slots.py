@@ -21,36 +21,36 @@ async def list_location_slots(location_id: int):
 async def add_slot(
     location_id: int,
     req: SlotCreate,
-    _user: Dict[str, Any] = Depends(require_role("OPERATOR", "ADMIN")),
+    user: Dict[str, Any] = Depends(require_role("OPERATOR", "ADMIN")),
 ):
-    return await create_slot(location_id, req)
+    return await create_slot(location_id, req, user_id=user["id"], user_role=user["role"])
 
 @router.post("/locations/{location_id}/slots/bulk", response_model=List[SlotResponse])
 async def add_slots_bulk(
     location_id: int,
     req: SlotBulkCreate,
-    _user: Dict[str, Any] = Depends(require_role("OPERATOR", "ADMIN")),
+    user: Dict[str, Any] = Depends(require_role("OPERATOR", "ADMIN")),
 ):
-    return await bulk_create_slots(location_id, req)
+    return await bulk_create_slots(location_id, req, user_id=user["id"], user_role=user["role"])
 
 @router.patch("/slots/{id}", response_model=SlotResponse)
 async def update_slot_by_id(
     id: int,
     req: SlotUpdate,
-    _user: Dict[str, Any] = Depends(require_role("OPERATOR", "ADMIN")),
+    user: Dict[str, Any] = Depends(require_role("OPERATOR", "ADMIN")),
 ):
-    return await update_slot(id, req)
+    return await update_slot(id, req, user_id=user["id"], user_role=user["role"])
 
 @router.post("/slots/{id}/block", response_model=SlotResponse)
 async def block_slot_endpoint(
     id: int,
-    _user: Dict[str, Any] = Depends(require_role("OPERATOR", "ADMIN")),
+    user: Dict[str, Any] = Depends(require_role("OPERATOR", "ADMIN")),
 ):
-    return await set_slot_status(id, "BLOCKED")
+    return await set_slot_status(id, "BLOCKED", user_id=user["id"], user_role=user["role"])
 
 @router.post("/slots/{id}/unblock", response_model=SlotResponse)
 async def unblock_slot_endpoint(
     id: int,
-    _user: Dict[str, Any] = Depends(require_role("OPERATOR", "ADMIN")),
+    user: Dict[str, Any] = Depends(require_role("OPERATOR", "ADMIN")),
 ):
-    return await set_slot_status(id, "ACTIVE")
+    return await set_slot_status(id, "ACTIVE", user_id=user["id"], user_role=user["role"])

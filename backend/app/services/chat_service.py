@@ -199,7 +199,7 @@ async def handle_chat_turn(
                 ))
                 opt_num += 1
 
-        state["last_options"] = [o.dict() for o in chat_options]
+        state["last_options"] = [o.model_dump() for o in chat_options]
         await save_session(sid, state)
 
         if not chat_options:

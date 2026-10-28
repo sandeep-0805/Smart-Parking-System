@@ -19,6 +19,7 @@ import { AutoBooking } from './pages/AutoBooking';
 import { OperatorDashboard } from './pages/operator/OperatorDashboard';
 import { ManageLocations } from './pages/operator/ManageLocations';
 import { ManageSlots } from './pages/operator/ManageSlots';
+import { OperatorBookings } from './pages/operator/OperatorBookings';
 
 // Admin Pages
 import { AdminPanel } from './pages/admin/AdminPanel';
@@ -89,6 +90,14 @@ export const App = () => {
           element={
             <ProtectedRoute allowedRoles={['OPERATOR', 'ADMIN']}>
               <ManageSlots />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="operator/bookings"
+          element={
+            <ProtectedRoute allowedRoles={['OPERATOR', 'ADMIN']}>
+              <OperatorBookings />
             </ProtectedRoute>
           }
         />

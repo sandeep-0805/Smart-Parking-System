@@ -5,7 +5,6 @@ from app.exceptions import NotFoundError, ForbiddenError
 from app.schemas.locations import LocationCreate, LocationUpdate
 
 async def create_location(owner_id: int, req: LocationCreate) -> Dict[str, Any]:
-    point_wkt = f"POINT({req.lng} {req.lat})"
     hours_json = json.dumps(req.operating_hours)
     fac_json = json.dumps(req.facilities)
 
@@ -15,7 +14,7 @@ async def create_location(owner_id: int, req: LocationCreate) -> Dict[str, Any]:
         operating_hours, facilities, base_rate_paise, min_rate_paise,
         max_rate_paise, rate_update_interval_min, pay_at_venue, status
     ) VALUES (
-        %s, %s, %s, %s, %s, ST_GeomFromText(%s, 4326),
+        %s, %s, %s, %s, %s, ST_SRID(Point(%s, %s), 4326),
         %s, %s, %s, %s, %s, %s, %s, 'PENDING'
     )
     """
@@ -27,7 +26,8 @@ async def create_location(owner_id: int, req: LocationCreate) -> Dict[str, Any]:
             req.address,
             req.lat,
             req.lng,
-            point_wkt,
+            req.lng,
+            req.lat,
             hours_json,
             fac_json,
             req.base_rate_paise,
@@ -54,10 +54,16 @@ async def get_location(location_id: int) -> Dict[str, Any]:
         raise NotFoundError("Location not found")
     
     # Parse JSON fields if string
-    if isinstance(row["operating_hours"], str):
-        row["operating_hours"] = json.loads(row["operating_hours"])
-    if isinstance(row["facilities"], str):
-        row["facilities"] = json.loads(row["facilities"])
+    if isinstance(row.get("operating_hours"), str):
+        try:
+            row["operating_hours"] = json.loads(row["operating_hours"])
+        except Exception:
+            pass
+    if isinstance(row.get("facilities"), str):
+        try:
+            row["facilities"] = json.loads(row["facilities"])
+        except Exception:
+            pass
     return row
 
 async def update_location(
@@ -80,8 +86,8 @@ async def update_location(
         updates.append("address = %s")
         params.append(req.address)
     if req.lat is not None and req.lng is not None:
-        updates.append("lat = %s, lng = %s, location_point = ST_GeomFromText(%s, 4326)")
-        params.extend([req.lat, req.lng, f"POINT({req.lng} {req.lat})"])
+        updates.append("lat = %s, lng = %s, location_point = ST_SRID(Point(%s, %s), 4326)")
+        params.extend([req.lat, req.lng, req.lng, req.lat])
     if req.operating_hours is not None:
         updates.append("operating_hours = %s")
         params.append(json.dumps(req.operating_hours))
@@ -136,15 +142,35 @@ async def list_locations(
     """
     rows = await fetch_all(query, tuple(params) if params else None)
     for r in rows:
-        if isinstance(r["operating_hours"], str):
-            r["operating_hours"] = json.loads(r["operating_hours"])
-        if isinstance(r["facilities"], str):
-            r["facilities"] = json.loads(r["facilities"])
+        if isinstance(r.get("operating_hours"), str):
+            try:
+                r["operating_hours"] = json.loads(r["operating_hours"])
+            except Exception:
+                pass
+        if isinstance(r.get("facilities"), str):
+            try:
+                r["facilities"] = json.loads(r["facilities"])
+            except Exception:
+                pass
     return rows
 
 async def approve_location(location_id: int) -> Dict[str, Any]:
     await execute("UPDATE parking_locations SET status = 'APPROVED' WHERE id = %s", (location_id,))
     return await get_location(location_id)
 
-async def delete_location(location_id: int):
+async def delete_location(location_id: int, user_id: Optional[int] = None, user_role: Optional[str] = None):
+    loc = await get_location(location_id)
+    if user_role and user_role != "ADMIN" and loc["owner_id"] != user_id:
+        raise ForbiddenError("You do not own this parking location")
+
+    # Clean up dependent records
+    await execute(
+        "DELETE FROM booking_blocks WHERE slot_id IN (SELECT id FROM parking_slots WHERE location_id = %s)",
+        (location_id,),
+    )
+    await execute(
+        "DELETE FROM price_quotes WHERE slot_id IN (SELECT id FROM parking_slots WHERE location_id = %s)",
+        (location_id,),
+    )
+    await execute("DELETE FROM parking_slots WHERE location_id = %s", (location_id,))
     await execute("DELETE FROM parking_locations WHERE id = %s", (location_id,))

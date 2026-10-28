@@ -40,10 +40,6 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshErr) {
         setAccessToken(null);
-        // Do not force redirect if request was optional (like search)
-        if (!originalRequest.url?.includes('/search')) {
-          window.location.href = '/login';
-        }
         return Promise.reject(refreshErr);
       }
     }

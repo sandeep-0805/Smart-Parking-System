@@ -55,12 +55,20 @@ export const Navbar = () => {
                 </>
               )}
               {isOperator && (
-                <Link
-                  to="/operator"
-                  className="inline-flex items-center px-3 py-2 text-sm font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
-                >
-                  <FiBriefcase className="mr-1.5" /> Operator Portal
-                </Link>
+                <>
+                  <Link
+                    to="/operator"
+                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
+                  >
+                    <FiBriefcase className="mr-1.5" /> Operator Portal
+                  </Link>
+                  <Link
+                    to="/operator/bookings"
+                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
+                  >
+                    <FiCalendar className="mr-1.5" /> Location Bookings
+                  </Link>
+                </>
               )}
               {isAdmin && (
                 <Link
@@ -166,13 +174,22 @@ export const Navbar = () => {
                 Auto-Booking Rules
               </Link>
               {isOperator && (
-                <Link
-                  to="/operator"
-                  onClick={() => setIsOpen(false)}
-                  className="block px-3 py-2 rounded-md text-base font-medium text-emerald-600 hover:bg-emerald-50"
-                >
-                  Operator Dashboard
-                </Link>
+                <>
+                  <Link
+                    to="/operator"
+                    onClick={() => setIsOpen(false)}
+                    className="block px-3 py-2 rounded-md text-base font-medium text-emerald-600 hover:bg-emerald-50"
+                  >
+                    Operator Dashboard
+                  </Link>
+                  <Link
+                    to="/operator/bookings"
+                    onClick={() => setIsOpen(false)}
+                    className="block px-3 py-2 rounded-md text-base font-medium text-emerald-600 hover:bg-emerald-50"
+                  >
+                    Location Bookings
+                  </Link>
+                </>
               )}
               {isAdmin && (
                 <Link

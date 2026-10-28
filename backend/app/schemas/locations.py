@@ -1,6 +1,6 @@
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 class LocationBase(BaseModel):
     name: str = Field(min_length=2, max_length=255)
@@ -19,6 +19,14 @@ class LocationBase(BaseModel):
     rate_update_interval_min: int = Field(default=15, ge=5)
     pay_at_venue: bool = False
 
+    @model_validator(mode="after")
+    def validate_rate_bounds(self):
+        if self.min_rate_paise > self.max_rate_paise:
+            raise ValueError(f"min_rate_paise ({self.min_rate_paise}) cannot exceed max_rate_paise ({self.max_rate_paise})")
+        if not (self.min_rate_paise <= self.base_rate_paise <= self.max_rate_paise):
+            raise ValueError(f"base_rate_paise ({self.base_rate_paise}) must be between min_rate_paise ({self.min_rate_paise}) and max_rate_paise ({self.max_rate_paise})")
+        return self
+
 class LocationCreate(LocationBase):
     pass
 
@@ -34,6 +42,13 @@ class LocationUpdate(BaseModel):
     max_rate_paise: Optional[int] = None
     rate_update_interval_min: Optional[int] = None
     pay_at_venue: Optional[bool] = None
+
+    @model_validator(mode="after")
+    def validate_update_rate_bounds(self):
+        if self.min_rate_paise is not None and self.max_rate_paise is not None:
+            if self.min_rate_paise > self.max_rate_paise:
+                raise ValueError("min_rate_paise cannot exceed max_rate_paise")
+        return self
 
 class LocationResponse(LocationBase):
     id: int

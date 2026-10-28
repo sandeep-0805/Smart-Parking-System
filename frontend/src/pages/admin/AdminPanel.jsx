@@ -23,6 +23,9 @@ export const AdminPanel = () => {
   const [configs, setConfigs] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [editingConfig, setEditingConfig] = useState(null);
+  const [configValueInput, setConfigValueInput] = useState('');
+  const [savingConfig, setSavingConfig] = useState(false);
 
   const fetchTabData = async () => {
     setLoading(true);
@@ -78,6 +81,36 @@ export const AdminPanel = () => {
       fetchTabData();
     } catch {
       toast.error('Failed to approve location.');
+    }
+  };
+
+  const handleEditConfig = (c) => {
+    setEditingConfig(c);
+    setConfigValueInput(
+      typeof c.config_value === 'object'
+        ? JSON.stringify(c.config_value, null, 2)
+        : String(c.config_value)
+    );
+  };
+
+  const handleSaveConfig = async () => {
+    if (!editingConfig) return;
+    setSavingConfig(true);
+    try {
+      let parsed;
+      try {
+        parsed = JSON.parse(configValueInput);
+      } catch {
+        parsed = configValueInput;
+      }
+      await updateSystemConfig(editingConfig.config_key, parsed);
+      toast.success(`Config '${editingConfig.config_key}' updated successfully!`);
+      setEditingConfig(null);
+      fetchTabData();
+    } catch {
+      toast.error('Failed to update config.');
+    } finally {
+      setSavingConfig(false);
     }
   };
 
@@ -265,12 +298,75 @@ export const AdminPanel = () => {
                       </span>
                       <p className="text-xs text-slate-500 mt-1">{c.description}</p>
                     </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleEditConfig(c)}
+                    >
+                      Edit Config
+                    </Button>
                   </div>
                   <div className="mt-3 bg-slate-50 p-3 rounded-lg font-mono text-xs text-slate-800 break-all">
                     {JSON.stringify(c.config_value, null, 2)}
                   </div>
                 </Card>
               ))}
+
+              {/* Edit Config Modal */}
+              {editingConfig && (
+                <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+                  <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                      <div>
+                        <span className="font-mono text-xs font-bold text-blue-600">
+                          {editingConfig.config_key}
+                        </span>
+                        <h3 className="font-bold text-slate-900 text-base mt-0.5">
+                          Edit System Setting
+                        </h3>
+                      </div>
+                      <button
+                        onClick={() => setEditingConfig(null)}
+                        className="text-slate-400 hover:text-slate-600 text-lg font-bold"
+                      >
+                        &times;
+                      </button>
+                    </div>
+
+                    <div className="py-4 space-y-3">
+                      <p className="text-xs text-slate-500">{editingConfig.description}</p>
+                      <label className="block text-xs font-semibold text-slate-700">
+                        Configuration Value (JSON or Primitive)
+                      </label>
+                      <textarea
+                        value={configValueInput}
+                        onChange={(e) => setConfigValueInput(e.target.value)}
+                        rows={6}
+                        className="w-full font-mono text-xs p-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-blue-500"
+                      />
+                    </div>
+
+                    <div className="flex justify-end space-x-3 pt-3 border-t border-slate-100">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEditingConfig(null)}
+                        disabled={savingConfig}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={handleSaveConfig}
+                        loading={savingConfig}
+                      >
+                        Save Configuration
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

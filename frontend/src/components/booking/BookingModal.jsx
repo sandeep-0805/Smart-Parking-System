@@ -22,6 +22,11 @@ export const BookingModal = ({ isOpen, onClose, slot, location, quote }) => {
       return;
     }
 
+    if (!slot?.quote_id) {
+      toast.error('Quote information is missing or expired. Please re-select the slot.');
+      return;
+    }
+
     setLoading(true);
     try {
       // 1. Transactional reservation
@@ -146,7 +151,17 @@ export const BookingModal = ({ isOpen, onClose, slot, location, quote }) => {
           {/* Quote validity countdown */}
           <div className="flex items-center justify-between text-xs py-2 px-3 bg-amber-50/80 border border-amber-200/80 rounded-lg">
             <span className="text-amber-800 font-medium">Guaranteed price window</span>
-            <Countdown initialSeconds={600} onExpire={onClose} label="Quote expires" />
+            <Countdown
+              initialSeconds={
+                slot.time_remaining_seconds ||
+                (slot.expires_at ? Math.max(0, Math.floor((new Date(slot.expires_at).getTime() - Date.now()) / 1000)) : 600)
+              }
+              onExpire={() => {
+                toast.error('Price quote has expired. Please refresh search to get current rates.');
+                onClose();
+              }}
+              label="Quote expires"
+            />
           </div>
 
           {/* Reason badges */}

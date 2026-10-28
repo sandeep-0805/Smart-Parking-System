@@ -53,7 +53,7 @@ async def list_user_bookings(
     FROM bookings b
     JOIN parking_slots s ON b.slot_id = s.id
     JOIN parking_locations l ON s.location_id = l.id
-    LEFT JOIN payments p ON p.booking_id = b.id
+    LEFT JOIN (SELECT booking_id, status FROM payments WHERE id IN (SELECT MAX(id) FROM payments GROUP BY booking_id)) p ON p.booking_id = b.id
     {where_clause}
     ORDER BY b.id DESC
     """

@@ -1,16 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FiClock } from 'react-icons/fi';
 
 export const Countdown = ({ initialSeconds = 600, onExpire, label = 'Hold expires in' }) => {
   const [secondsLeft, setSecondsLeft] = useState(initialSeconds);
+  const onExpireRef = useRef(onExpire);
+  onExpireRef.current = onExpire;
+  const expiredFiredRef = useRef(false);
 
   useEffect(() => {
     setSecondsLeft(initialSeconds);
-  }, [initialSeconds]);
+    expiredFiredRef.current = false;
 
-  useEffect(() => {
-    if (secondsLeft <= 0) {
-      if (onExpire) onExpire();
+    if (initialSeconds <= 0) {
+      expiredFiredRef.current = true;
+      if (onExpireRef.current) onExpireRef.current();
       return;
     }
 
@@ -18,7 +21,10 @@ export const Countdown = ({ initialSeconds = 600, onExpire, label = 'Hold expire
       setSecondsLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          if (onExpire) onExpire();
+          if (!expiredFiredRef.current) {
+            expiredFiredRef.current = true;
+            if (onExpireRef.current) onExpireRef.current();
+          }
           return 0;
         }
         return prev - 1;
@@ -26,7 +32,7 @@ export const Countdown = ({ initialSeconds = 600, onExpire, label = 'Hold expire
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [secondsLeft, onExpire]);
+  }, [initialSeconds]);
 
   const mins = Math.floor(secondsLeft / 60);
   const secs = secondsLeft % 60;

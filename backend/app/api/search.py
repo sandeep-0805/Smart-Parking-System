@@ -12,7 +12,7 @@ router = APIRouter(tags=["Search"])
 async def search_suggestions_endpoint(
     q: str = Query(..., description="Search query string")
 ):
-    if len(q.strip()) < 3:
+    if len(q.strip()) < 2:
         return []
     return await get_location_suggestions(q.strip())
 
@@ -30,14 +30,25 @@ async def search_parking_endpoint(
     place_name: Optional[str] = Query(None),
     date: Optional[str] = Query(None),
     start_time: Optional[str] = Query(None),
-    duration_minutes: Optional[int] = Query(120),
+    duration_minutes: Optional[int] = Query(120, ge=15, le=1440),
     vehicle_type: Optional[str] = Query(None),
     max_budget_inr: Optional[float] = Query(None),
     max_distance_m: Optional[int] = Query(5000, description="Max search radius in meters (default 5 km)"),
     facilities: Optional[List[str]] = Query(None),
     user: Optional[Dict[str, Any]] = Depends(get_optional_user),
 ):
-    prefs = user.get("preferences", {}) if user else {}
+    prefs = {}
+    if user:
+        from app.database import fetch_one
+        import json
+        pref_row = await fetch_one("SELECT * FROM preferences WHERE user_id = %s", (user["id"],))
+        if pref_row:
+            if isinstance(pref_row.get("preferred_facilities"), str):
+                try:
+                    pref_row["preferred_facilities"] = json.loads(pref_row["preferred_facilities"])
+                except Exception:
+                    pref_row["preferred_facilities"] = []
+            prefs = pref_row
     budget_paise = int(max_budget_inr * 100) if max_budget_inr else None
 
     # Check 30s cache for fast display (FR-S6)

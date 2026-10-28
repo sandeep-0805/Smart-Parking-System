@@ -19,7 +19,8 @@ export const formatDistance = (meters) => {
 export const formatDateTime = (dateStr) => {
   if (!dateStr) return '';
   try {
-    const d = new Date(dateStr);
+    const s = (typeof dateStr === 'string' && !dateStr.endsWith('Z') && !dateStr.includes('+')) ? dateStr + 'Z' : dateStr;
+    const d = new Date(s);
     return d.toLocaleString('en-IN', {
       timeZone: 'Asia/Kolkata',
       month: 'short',

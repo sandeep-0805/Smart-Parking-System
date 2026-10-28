@@ -16,9 +16,9 @@ async def seed_data():
     # 1. Users
     pwd_hash = hash_password("Test@1234")
     users_data = [
-        ("driver@test.com", pwd_hash, "Rahul Driver", "9876543210", "DRIVER", "ACTIVE", 1),
-        ("operator@test.com", pwd_hash, "Priya Operator", "9876543211", "OPERATOR", "ACTIVE", 1),
-        ("admin@test.com", pwd_hash, "Kiran Admin", "9876543212", "ADMIN", "ACTIVE", 1),
+        ("driver@test.com", pwd_hash, "Driver", "9876543210", "DRIVER", "ACTIVE", 1),
+        ("operator@test.com", pwd_hash, "Operator", "9876543211", "OPERATOR", "ACTIVE", 1),
+        ("admin@test.com", pwd_hash, "Admin", "9876543212", "ADMIN", "ACTIVE", 1),
     ]
     for email, phash, name, phone, role, status, ev in users_data:
         await execute(

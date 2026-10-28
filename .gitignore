@@ -70,3 +70,8 @@ coverage.xml
 # Build output
 *.egg-info/
 frontend/dist/
+
+# Scratch scripts & temporary presentation exports
+scratch/
+screenshots/slide_*.png
+screenshots/preview_*.png

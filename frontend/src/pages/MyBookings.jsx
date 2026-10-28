@@ -93,7 +93,11 @@ export const MyBookings = () => {
 
                     {b.status === 'PENDING_PAYMENT' && b.time_remaining_seconds > 0 && (
                       <div className="mt-2.5">
-                        <Countdown initialSeconds={b.time_remaining_seconds} label="Unpaid hold expires in" />
+                        <Countdown
+                          initialSeconds={b.time_remaining_seconds}
+                          onExpire={fetchBookings}
+                          label="Unpaid hold expires in"
+                        />
                       </div>
                     )}
                   </div>

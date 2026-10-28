@@ -64,8 +64,13 @@ async def refresh_token(
     token = refresh_token
     if not token:
         # Fallback to JSON body or auth header if cookie not present
-        body = await request.json() if request.headers.get("content-type") == "application/json" else {}
-        token = body.get("refresh_token")
+        content_type = request.headers.get("content-type", "")
+        if content_type.startswith("application/json"):
+            try:
+                body = await request.json()
+                token = body.get("refresh_token")
+            except Exception:
+                token = None
 
     if not token:
         raise UnauthorizedError("Missing refresh token cookie")
@@ -105,27 +110,34 @@ async def logout(
 async def get_me(user: Dict[str, Any] = Depends(get_current_user)):
     return await get_user_profile(user["id"])
 
+@router.get("/preferences")
+async def get_preferences(user: Dict[str, Any] = Depends(get_current_user)):
+    profile = await get_user_profile(user["id"])
+    return profile.get("preferences", {})
+
 @router.put("/preferences")
 async def update_preferences(
     req: PreferencesUpdate,
     user: Dict[str, Any] = Depends(get_current_user),
 ):
     import json
+    facs_json = json.dumps(req.preferred_facilities or [])
     await execute(
         """
-        UPDATE preferences
-        SET default_vehicle_type = %s,
-            preferred_facilities = %s,
-            max_walking_distance_m = %s,
-            max_budget_paise = %s
-        WHERE user_id = %s
+        INSERT INTO preferences (user_id, default_vehicle_type, preferred_facilities, max_walking_distance_m, max_budget_paise)
+        VALUES (%s, %s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE
+            default_vehicle_type = VALUES(default_vehicle_type),
+            preferred_facilities = VALUES(preferred_facilities),
+            max_walking_distance_m = VALUES(max_walking_distance_m),
+            max_budget_paise = VALUES(max_budget_paise)
         """,
         (
-            req.default_vehicle_type,
-            json.dumps(req.preferred_facilities or []),
-            req.max_walking_distance_m,
-            req.max_budget_paise,
             user["id"],
+            req.default_vehicle_type or "CAR",
+            facs_json,
+            req.max_walking_distance_m or 1000,
+            req.max_budget_paise,
         ),
     )
     return await get_user_profile(user["id"])
