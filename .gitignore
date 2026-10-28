@@ -75,3 +75,6 @@ frontend/dist/
 scratch/
 screenshots/slide_*.png
 screenshots/preview_*.png
+
+# Generated presentation (run scripts/build_presentation.py to regenerate)
+SmartParking_Presentation.pptx
